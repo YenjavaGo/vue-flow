@@ -1,0 +1,190 @@
+{
+  "categories": [
+    {
+      "name": "核心系統",
+      "nodes": [
+        {
+          "id": "auth",
+          "name": "用戶認證系統",
+          "type": "核心系統",
+          "description": "負責用戶登入驗證、會話管理和權限控制",
+          "icon": "🔐",
+          "color": "#4285f4",
+          "nodeType": "custom",
+          "config": {
+            "authMethod": "oauth2",
+            "sessionTimeout": 3600,
+            "multiFactorAuth": true
+          }
+        },
+        {
+          "id": "account",
+          "name": "帳戶管理系統",
+          "type": "核心系統",
+          "description": "管理用戶帳戶資訊、帳戶狀態和基本資料",
+          "icon": "👤",
+          "color": "#34a853",
+          "nodeType": "custom",
+          "config": {
+            "accountTypes": ["儲蓄", "支票", "信用"],
+            "maxAccounts": 10
+          }
+        },
+        {
+          "id": "transaction",
+          "name": "交易處理系統",
+          "type": "核心系統",
+          "description": "處理所有金融交易的核心引擎",
+          "icon": "💰",
+          "color": "#ea4335",
+          "nodeType": "custom",
+          "config": {
+            "maxAmount": 1000000,
+            "currencies": ["TWD", "USD", "EUR"],
+            "transactionTypes": ["轉帳", "提款", "存款"]
+          }
+        },
+        {
+          "id": "risk",
+          "name": "風險控制系統",
+          "type": "核心系統",
+          "description": "實時風險評估和控制措施執行",
+          "icon": "🛡️",
+          "color": "#ff9800",
+          "nodeType": "custom",
+          "config": {
+            "riskThreshold": 0.7,
+            "autoBlock": true,
+            "alertLevel": "medium"
+          }
+        },
+        {
+          "id": "payment",
+          "name": "支付閘道系統",
+          "type": "核心系統",
+          "description": "整合多種支付方式和第三方支付服務",
+          "icon": "💳",
+          "color": "#9c27b0",
+          "nodeType": "custom",
+          "config": {
+            "gateways": ["visa", "mastercard", "applepay"],
+            "timeout": 30000
+          }
+        }
+      ]
+    },
+    {
+      "name": "微服務",
+      "nodes": [
+        {
+          "id": "verify",
+          "name": "身份驗證服務",
+          "type": "微服務",
+          "description": "提供多因子身份驗證和生物識別",
+          "icon": "✅",
+          "color": "#2196f3",
+          "nodeType": "custom",
+          "config": {
+            "methods": ["sms", "email", "biometric"],
+            "otpExpiry": 300
+          }
+        },
+        {
+          "id": "balance",
+          "name": "餘額查詢服務",
+          "type": "微服務",
+          "description": "提供即時帳戶餘額查詢功能",
+          "icon": "💵",
+          "color": "#607d8b",
+          "nodeType": "custom",
+          "config": {
+            "cacheTimeout": 60,
+            "precision": 2
+          }
+        },
+        {
+          "id": "validate",
+          "name": "交易驗證服務",
+          "type": "微服務",
+          "description": "驗證交易的合法性和合規性",
+          "icon": "🔍",
+          "color": "#795548",
+          "nodeType": "custom",
+          "config": {
+            "rules": ["amount", "frequency", "recipient"],
+            "strict": true
+          }
+        },
+        {
+          "id": "fraud",
+          "name": "欺詐檢測服務",
+          "type": "微服務",
+          "description": "使用AI算法檢測可疑交易行為",
+          "icon": "🚨",
+          "color": "#f44336",
+          "nodeType": "custom",
+          "config": {
+            "mlModel": "xgboost",
+            "sensitivity": 0.8,
+            "realtime": true
+          }
+        },
+        {
+          "id": "notify",
+          "name": "通知服務",
+          "type": "微服務",
+          "description": "多渠道訊息通知和推送服務",
+          "icon": "📧",
+          "color": "#3f51b5",
+          "nodeType": "custom",
+          "config": {
+            "channels": ["email", "sms", "push", "webhook"],
+            "templates": true
+          }
+        },
+        {
+          "id": "audit",
+          "name": "審計日誌服務",
+          "type": "微服務",
+          "description": "記錄和管理所有系統操作的審計軌跡",
+          "icon": "📋",
+          "color": "#009688",
+          "nodeType": "custom",
+          "config": {
+            "retention": "7years",
+            "encryption": true,
+            "compliance": "SOX"
+          }
+        },
+        {
+          "id": "report",
+          "name": "報表生成服務",
+          "type": "微服務",
+          "description": "生成各類業務和合規報表",
+          "icon": "📊",
+          "color": "#e91e63",
+          "nodeType": "custom",
+          "config": {
+            "formats": ["pdf", "excel", "csv"],
+            "scheduled": true,
+            "customizable": true
+          }
+        },
+        {
+          "id": "sync",
+          "name": "資料同步服務",
+          "type": "微服務",
+          "description": "跨系統資料同步和一致性維護",
+          "icon": "🔄",
+          "color": "#00bcd4",
+          "nodeType": "custom",
+          "config": {
+            "mode": "real-time",
+            "conflictResolution": "latest-wins",
+            "retries": 3
+          }
+        }
+      ]
+    }
+  ]
+} 
