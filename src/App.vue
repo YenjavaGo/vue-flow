@@ -54,6 +54,26 @@
           </div>
         </div>
         
+        <!-- 流程管理按鈕 -->
+        <div class="flow-management">
+          <button 
+            class="save-flow-btn"
+            @click="showSaveFlowModal = true"
+            :disabled="nodes.length === 0"
+            title="保存當前流程"
+          >
+            💾 保存流程
+          </button>
+          
+          <button 
+            class="load-flow-btn"
+            @click="showFlowManager = !showFlowManager"
+            title="載入流程或使用模板"
+          >
+            📂 流程管理
+          </button>
+        </div>
+        
         <!-- 批量操作按鈕 -->
         <div v-if="nodes.length > 0 || edges.length > 0" class="bulk-actions">
           <button 
@@ -71,7 +91,18 @@
         </div>
       </div>
       
-      <div class="node-panel">
+      <!-- 流程管理器 -->
+      <div v-if="showFlowManager" class="flow-manager-container">
+        <FlowManager 
+          :current-flow-id="currentFlowId"
+          @load-flow="loadFlowFromManager"
+          @use-template="useTemplateFromManager"
+          @import-flow="importFlowFromManager"
+        />
+      </div>
+      
+      <!-- 節點面板 -->
+      <div v-if="!showFlowManager" class="node-panel">
         <h3>可用節點</h3>
         <div
           v-for="nodeConfig in availableNodes"
@@ -94,7 +125,7 @@
       </div>
       
       <!-- 節點屬性面板 -->
-      <div v-if="selectedNode" class="node-panel">
+      <div v-if="selectedNode && !showFlowManager" class="node-panel">
         <h3>節點屬性</h3>
         <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
           <div style="margin-bottom: 10px;">
@@ -138,7 +169,7 @@
       </div>
       
       <!-- 邊屬性面板 -->
-      <div v-if="selectedEdge" class="node-panel">
+      <div v-if="selectedEdge && !showFlowManager" class="node-panel">
         <h3>連線屬性</h3>
         <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
           <div style="margin-bottom: 10px;">
@@ -442,6 +473,68 @@
         </div>
       </div>
     </div>
+    
+    <!-- 保存流程模態窗口 -->
+    <div v-if="showSaveFlowModal" class="modal-overlay" @click="closeSaveFlowModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>保存流程</h3>
+          <button class="close-btn" @click="closeSaveFlowModal">✕</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label>流程名稱 *</label>
+            <input 
+              v-model="saveFlowData.name" 
+              type="text" 
+              class="form-input"
+              placeholder="輸入流程名稱"
+              required
+            />
+          </div>
+          
+          <div class="form-group">
+            <label>流程描述</label>
+            <textarea 
+              v-model="saveFlowData.description" 
+              class="form-textarea"
+              placeholder="描述此流程的功能和用途"
+              rows="3"
+            ></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>流程統計</label>
+            <div class="flow-stats">
+              <div class="stat-item">
+                <span class="stat-label">節點數量:</span>
+                <span class="stat-value">{{ nodes.length }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">連線數量:</span>
+                <span class="stat-value">{{ edges.length }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">創建時間:</span>
+                <span class="stat-value">{{ new Date().toLocaleString('zh-TW') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <button class="cancel-btn" @click="closeSaveFlowModal">取消</button>
+          <button 
+            class="save-btn" 
+            @click="saveCurrentFlow"
+            :disabled="!saveFlowData.name.trim()"
+          >
+            保存流程
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -449,7 +542,10 @@
 import { ref, computed, markRaw, nextTick } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
+import FlowManager from './components/FlowManager.vue'
 import { executeFlow as runFlow, validateFlow } from './utils/flowExecutor.js'
+import { saveFlow, updateFlow } from './utils/flowStorage.js'
+import { recordExecutionHistory } from './utils/executionHistory.js'
 
 // Vue Flow 參考
 const vueFlowRef = ref(null)
@@ -457,6 +553,16 @@ const vueFlowRef = ref(null)
 // 執行狀態
 const isExecuting = ref(false)
 const executionSummary = ref(null)
+const executionStartTime = ref(null)
+
+// 流程管理狀態
+const showFlowManager = ref(false)
+const showSaveFlowModal = ref(false)
+const currentFlowId = ref(null)
+const saveFlowData = ref({
+  name: '',
+  description: ''
+})
 
 // 自定義節點類型 (使用markRaw避免組件被響應式包裝)
 const nodeTypes = markRaw({
@@ -465,7 +571,6 @@ const nodeTypes = markRaw({
 
 // 流程圖節點和邊 (預設為空)
 const nodes = ref([])
-
 const edges = ref([])
 
 // 選中的節點和邊
@@ -648,25 +753,40 @@ const onDrop = async (event) => {
   // 獲取拖拽的資料
   const nodeData = JSON.parse(event.dataTransfer.getData('application/vueflow'))
   
-  // 計算相對於畫布的座標
+  // 獲取Vue Flow實例和當前視野信息
+  const flowInstance = vueFlowRef.value
+  if (!flowInstance) {
+    console.error('Vue Flow實例不可用')
+    return
+  }
+  
+  // 獲取當前視野信息
+  const viewport = flowInstance.getViewport()
   const flowContainer = event.currentTarget
   const rect = flowContainer.getBoundingClientRect()
   
-  // 計算畫布中心點位置，讓新節點出現在視野中心附近
-  const centerX = rect.width / 2
-  const centerY = rect.height / 2
+  // 計算鼠標在畫布坐標系中的位置
+  const clientX = event.clientX - rect.left
+  const clientY = event.clientY - rect.top
   
-  // 使用滑鼠位置，但確保在合理範圍內
-  let x = event.clientX - rect.left
-  let y = event.clientY - rect.top
+  // 轉換到流程坐標系（考慮縮放和平移）
+  const x = (clientX - viewport.x) / viewport.zoom
+  const y = (clientY - viewport.y) / viewport.zoom
   
-  // 如果拖拽位置超出畫布邊界，則放置在中心附近
-  if (x < 0 || x > rect.width || y < 0 || y > rect.height) {
-    x = centerX + (Math.random() - 0.5) * 200 // 在中心附近隨機偏移
-    y = centerY + (Math.random() - 0.5) * 200
+  // 確保節點位置在合理範圍內（如果拖拽到了畫布外）
+  let finalX = x
+  let finalY = y
+  
+  // 如果計算出的位置超出合理範圍，則放置在當前視野中心
+  const viewCenterX = (-viewport.x + rect.width / 2) / viewport.zoom
+  const viewCenterY = (-viewport.y + rect.height / 2) / viewport.zoom
+  
+  if (clientX < 0 || clientX > rect.width || clientY < 0 || clientY > rect.height) {
+    finalX = viewCenterX + (Math.random() - 0.5) * 100
+    finalY = viewCenterY + (Math.random() - 0.5) * 100
   }
   
-  const position = { x, y }
+  const position = { x: finalX, y: finalY }
 
   const newNode = {
     id: `${nodeData.id}_${Date.now()}`,
@@ -676,15 +796,19 @@ const onDrop = async (event) => {
       label: nodeData.name,
       subtitle: nodeData.type,
       icon: nodeData.icon,
-      color: nodeData.color
+      color: nodeData.color,
+      status: 'pending'
     }
   }
 
   nodes.value.push(newNode)
   
-  // 等待下一個tick讓DOM更新，然後嘗試將視野調整到包含所有節點
+  // 等待下一個tick讓DOM更新
   await nextTick()
-  console.log('新節點已添加到畫布:', newNode)
+  console.log('新節點已添加到畫布:', newNode, '位置:', position)
+  
+  // 自動選中新添加的節點
+  selectedNode.value = newNode
 }
 
 // 檢查是否可以執行流程
@@ -714,6 +838,7 @@ const executeFlow = async () => {
   
   isExecuting.value = true
   executionSummary.value = null
+  executionStartTime.value = Date.now()
   
   console.log('開始執行流程...')
   
@@ -732,6 +857,16 @@ const executeFlow = async () => {
           : `流程執行成功！所有 ${summary.successCount} 個節點都已完成`
         
         alert(message)
+        
+        // 記錄執行歷史
+        const executionTime = Date.now() - executionStartTime.value
+        const flowData = {
+          id: currentFlowId.value,
+          name: currentFlowId.value ? '已保存流程' : '未命名流程',
+          nodes: nodes.value,
+          edges: edges.value
+        }
+        recordExecutionHistory(flowData, summary, executionTime)
       }
     )
   } catch (error) {
@@ -973,6 +1108,174 @@ const saveNodeChanges = () => {
   }
 }
 
+// 流程管理相關方法
+const closeSaveFlowModal = () => {
+  showSaveFlowModal.value = false
+  saveFlowData.value = {
+    name: '',
+    description: ''
+  }
+}
+
+const saveCurrentFlow = () => {
+  if (!saveFlowData.value.name.trim()) {
+    alert('請輸入流程名稱')
+    return
+  }
+  
+  try {
+    const flowData = {
+      nodes: nodes.value,
+      edges: edges.value
+    }
+    
+    if (currentFlowId.value) {
+      // 更新現有流程
+      updateFlow(currentFlowId.value, nodes.value, edges.value, saveFlowData.value.description)
+      alert('流程更新成功！')
+    } else {
+      // 保存新流程
+      const savedFlow = saveFlow(saveFlowData.value.name, nodes.value, edges.value, saveFlowData.value.description)
+      currentFlowId.value = savedFlow.id
+      alert('流程保存成功！')
+    }
+    
+    closeSaveFlowModal()
+  } catch (error) {
+    alert('保存失敗：' + error.message)
+  }
+}
+
+const loadFlowFromManager = (flow) => {
+  try {
+    console.log('載入流程:', flow)
+    console.log('流程節點:', flow.nodes)
+    console.log('流程連線:', flow.edges)
+    
+    // 清空現有數據
+    nodes.value = []
+    edges.value = []
+    
+    // 使用nextTick確保DOM更新
+    nextTick(() => {
+      // 載入流程數據
+      nodes.value = [...flow.nodes]
+      edges.value = [...flow.edges]
+      currentFlowId.value = flow.id
+      
+      console.log('載入後的節點:', nodes.value)
+      console.log('載入後的連線:', edges.value)
+      
+      // 重置所有節點狀態
+      nodes.value.forEach(node => {
+        if (node.data) {
+          node.data.status = 'pending'
+          node.data.errorMessage = null
+        }
+      })
+      
+      // 等待一下再調整視野，確保節點已渲染
+      setTimeout(() => {
+        if (vueFlowRef.value) {
+          vueFlowRef.value.fitView({ padding: 0.2, minZoom: 0.5, maxZoom: 1.5 })
+        }
+      }, 100)
+      
+      showFlowManager.value = false
+      alert('流程載入成功！')
+    })
+  } catch (error) {
+    console.error('載入失敗:', error)
+    alert('載入失敗：' + error.message)
+  }
+}
+
+const useTemplateFromManager = (template) => {
+  try {
+    console.log('載入模板:', template)
+    console.log('模板節點:', template.nodes)
+    console.log('模板連線:', template.edges)
+    
+    // 清空現有數據
+    nodes.value = []
+    edges.value = []
+    
+    // 使用nextTick確保DOM更新
+    nextTick(() => {
+      // 獲取當前畫布的中心位置
+      const viewport = vueFlowRef.value?.getViewport()
+      const centerX = viewport ? -viewport.x / viewport.zoom + 400 : 400
+      const centerY = viewport ? -viewport.y / viewport.zoom + 200 : 200
+      
+      // 調整節點位置，使其出現在當前視野中心
+      const adjustedNodes = template.nodes.map((node, index) => ({
+        ...node,
+        position: {
+          x: centerX + (index % 3) * 200 - 200, // 水平分佈
+          y: centerY + Math.floor(index / 3) * 150 - 100 // 垂直分佈
+        }
+      }))
+      
+      // 載入調整後的節點和原始連線
+      nodes.value = [...adjustedNodes]
+      edges.value = [...template.edges]
+      currentFlowId.value = null // 模板使用後需要重新保存
+      
+      console.log('載入後的節點:', nodes.value)
+      console.log('載入後的連線:', edges.value)
+      
+      // 重置所有節點狀態
+      nodes.value.forEach(node => {
+        if (node.data) {
+          node.data.status = 'pending'
+          node.data.errorMessage = null
+        }
+      })
+      
+      // 等待一下再調整視野，確保節點已渲染
+      setTimeout(() => {
+        if (vueFlowRef.value) {
+          vueFlowRef.value.fitView({ padding: 0.2, minZoom: 0.5, maxZoom: 1.5 })
+        }
+      }, 100)
+      
+      showFlowManager.value = false
+      alert('模板載入成功！請記得保存您的流程。')
+    })
+  } catch (error) {
+    console.error('載入模板失敗:', error)
+    alert('載入模板失敗：' + error.message)
+  }
+}
+
+const importFlowFromManager = (flowData) => {
+  try {
+    nodes.value = [...flowData.nodes]
+    edges.value = [...flowData.edges]
+    currentFlowId.value = null // 導入的流程需要重新保存
+    
+    // 重置所有節點狀態
+    nodes.value.forEach(node => {
+      if (node.data) {
+        node.data.status = 'pending'
+        node.data.errorMessage = null
+      }
+    })
+    
+    // 等待一下再調整視野，確保節點已渲染
+    setTimeout(() => {
+      if (vueFlowRef.value) {
+        vueFlowRef.value.fitView({ padding: 0.2, minZoom: 0.5, maxZoom: 1.5 })
+      }
+    }, 100)
+    
+    showFlowManager.value = false
+    alert('流程導入成功！請記得保存您的流程。')
+  } catch (error) {
+    alert('導入失敗：' + error.message)
+  }
+}
+
 // 元件掛載時取得節點設定
 updateAvailableNodes()
 </script>
@@ -1081,6 +1384,75 @@ updateAvailableNodes()
   50% {
     opacity: 0.8;
   }
+}
+
+/* 流程管理按鈕 */
+.flow-management {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.save-flow-btn,
+.load-flow-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.save-flow-btn:hover:not(:disabled) {
+  background: #e8f5e8;
+  border-color: #4caf50;
+  color: #4caf50;
+}
+
+.save-flow-btn:disabled {
+  background: #f5f5f5;
+  color: #ccc;
+  cursor: not-allowed;
+}
+
+.load-flow-btn:hover {
+  background: #e3f2fd;
+  border-color: #4285f4;
+  color: #4285f4;
+}
+
+/* 流程管理器容器 */
+.flow-manager-container {
+  margin-bottom: 20px;
+}
+
+/* 流程統計 */
+.flow-stats {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.flow-stats .stat-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.flow-stats .stat-item:last-child {
+  margin-bottom: 0;
+}
+
+.flow-stats .stat-label {
+  color: #666;
+}
+
+.flow-stats .stat-value {
+  font-weight: 500;
+  color: #333;
 }
 
 /* 節點面板樣式 */
