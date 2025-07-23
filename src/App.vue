@@ -155,9 +155,20 @@
               </span>
             </div>
             <!-- 條件設置 -->
-            <div v-if="selectedNode.data?.categoryNotes" style="margin-top: 6px; padding: 6px 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #4285f4;">
-              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">條件設置:</div>
-              <div style="font-size: 12px; color: #333; line-height: 1.4;">{{ selectedNode.data.categoryNotes }}</div>
+            <div v-if="selectedNode.data?.categoryConditions && selectedNode.data.categoryConditions.length > 0" style="margin-top: 6px;">
+              <div style="font-size: 11px; color: #666; margin-bottom: 6px; font-weight: 500;">條件設置:</div>
+              <div 
+                v-for="(condition, index) in selectedNode.data.categoryConditions" 
+                :key="index"
+                style="margin-bottom: 6px; padding: 6px 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #4285f4;"
+              >
+                <div style="font-size: 10px; color: #999; margin-bottom: 2px;">{{ selectedNode.data.categories[index] || `條件 ${index + 1}` }}</div>
+                                 <div style="font-size: 11px; color: #333; line-height: 1.3;">
+                   <span v-if="condition.parameter" style="margin-right: 8px;"><strong>參數:</strong> {{ condition.parameter }}</span>
+                   <span v-if="condition.value" style="margin-right: 8px;"><strong>值:</strong> {{ condition.value }}</span>
+                   <span v-if="!condition.parameter && !condition.value" style="color: #999; font-style: italic;">尚未設置</span>
+                 </div>
+              </div>
             </div>
           </div>
           <div style="margin-bottom: 15px;">
@@ -256,11 +267,24 @@
             <textarea 
               v-model="editingNode.inputParameters" 
               class="form-textarea input-parameters-textarea"
-              placeholder="定義節點的輸入參數，json格式，例如：{'code':'1','name':'國中'}"
+              placeholder="定義節點的輸入參數，json格式，例如：'{'code':'1','name':'國中'}'"
               rows="4"
             ></textarea>
             <div class="field-hint">
               描述此節點需要的輸入參數，包括參數名稱、類型、是否必填等信息
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>輸出結果</label>
+            <textarea 
+              :value="getFormattedParameters(editingNode.inputParameters)" 
+              class="form-textarea parameters-preview-textarea"
+              readonly
+              rows="4"
+            ></textarea>
+            <div class="field-hint">
+              自動格式化和驗證輸入參數的預覽
             </div>
           </div>
           
@@ -300,14 +324,41 @@
           
           <div class="form-group">
             <label>條件設置</label>
-            <textarea 
-              v-model="editingNode.categoryNotes" 
-              class="form-textarea category-notes-textarea"
-              placeholder="描述這些分類的用途、關係或特殊說明..."
-              rows="3"
-            ></textarea>
-            <div class="field-hint">
-              可以在此說明分類的業務含義、使用場景或分類間的關係
+            <div v-if="editingNode.categories && editingNode.categories.length > 0" class="condition-settings">
+              <div 
+                v-for="(category, index) in editingNode.categories" 
+                :key="index"
+                class="condition-item"
+              >
+                <div class="condition-header">
+                  <span class="condition-category">{{ category || `分類 ${index + 1}` }}</span>
+                  <span class="condition-index">條件 {{ index + 1 }}</span>
+                </div>
+                                 <div class="condition-fields">
+                   <div class="condition-field">
+                     <label class="condition-field-label">參數</label>
+                     <input 
+                       v-model="editingNode.categoryConditions[index].parameter" 
+                       type="text" 
+                       class="condition-input"
+                       placeholder="參數名稱"
+                     />
+                   </div>
+                   <div class="condition-field">
+                     <label class="condition-field-label">值</label>
+                     <input 
+                       v-model="editingNode.categoryConditions[index].value" 
+                       type="text" 
+                       class="condition-input"
+                       placeholder="條件值"
+                     />
+                   </div>
+                 </div>
+              </div>
+            </div>
+            <div v-else class="no-categories-hint">
+              <div class="hint-icon">ℹ️</div>
+              <div class="hint-text">請先添加分類，條件設置會根據分類數量自動生成</div>
             </div>
           </div>
           
@@ -581,7 +632,7 @@ const editingNode = ref({
   inputParameters: '',
   config: {},
   categories: [],
-  categoryNotes: '',
+  categoryConditions: [],
   notes: ''
 })
 
@@ -1091,6 +1142,17 @@ const getDefaultConfig = (nodeType) => {
 const openEditModal = (node) => {
   const nodeType = node.id.split('_')[0]
   
+  const categories = [...(node.data?.categories || [])]
+  const existingConditions = node.data?.categoryConditions || []
+  
+  // 確保條件數量與分類數量一致
+  const categoryConditions = categories.map((_, index) => {
+    return existingConditions[index] || {
+      parameter: '',
+      value: ''
+    }
+  })
+  
   editingNode.value = {
     id: node.id,
     label: node.data?.label || '',
@@ -1098,8 +1160,8 @@ const openEditModal = (node) => {
     type: nodeType,
     inputParameters: node.data?.inputParameters || '',
     config: { ...getDefaultConfig(nodeType), ...(node.data?.config || {}) },
-    categories: [...(node.data?.categories || [])],
-    categoryNotes: node.data?.categoryNotes || '',
+    categories: categories,
+    categoryConditions: categoryConditions,
     notes: node.data?.notes || ''
   }
   
@@ -1117,7 +1179,7 @@ const closeEditModal = () => {
     inputParameters: '',
     config: {},
     categories: [],
-    categoryNotes: '',
+    categoryConditions: [],
     notes: ''
   }
 }
@@ -1130,6 +1192,9 @@ const saveNodeChanges = () => {
     // 過濾掉空的分類
     const filteredCategories = editingNode.value.categories.filter(cat => cat.trim() !== '')
     
+    // 過濾對應的條件設置，只保留有效分類對應的條件
+    const filteredConditions = editingNode.value.categoryConditions.slice(0, filteredCategories.length)
+    
     // 更新節點數據
     nodes.value[nodeIndex].data = {
       ...nodes.value[nodeIndex].data,
@@ -1138,7 +1203,7 @@ const saveNodeChanges = () => {
       inputParameters: editingNode.value.inputParameters,
       config: { ...editingNode.value.config },
       categories: filteredCategories,
-      categoryNotes: editingNode.value.categoryNotes,
+      categoryConditions: filteredConditions,
       notes: editingNode.value.notes
     }
     
@@ -1150,11 +1215,49 @@ const saveNodeChanges = () => {
 // 新增分類
 const addCategory = () => {
   editingNode.value.categories.push('')
+  // 同時添加對應的條件設置
+  editingNode.value.categoryConditions.push({
+    parameter: '',
+    value: ''
+  })
 }
 
 // 移除分類
 const removeCategory = (index) => {
   editingNode.value.categories.splice(index, 1)
+  // 同時移除對應的條件設置
+  editingNode.value.categoryConditions.splice(index, 1)
+}
+
+// 格式化和驗證輸入參數
+const getFormattedParameters = (paramStr) => {
+  if (!paramStr || paramStr.trim() === '') {
+    return ''
+  }
+  
+  try {
+    // 嘗試解析JSON
+    const parsed = JSON.parse(paramStr)
+    
+    // 如果解析成功，格式化顯示
+    const formatted = JSON.stringify(parsed, null, 2)
+    
+    // 添加一些額外信息
+    const paramCount = Object.keys(parsed).length
+    const analysis = `// 參數驗證結果：✓ 有效的JSON格式\n// 參數數量：${paramCount} 個\n// 格式化結果：\n\n${formatted}`
+    
+    return analysis
+  } catch (error) {
+    // JSON解析失敗時的處理
+    if (paramStr.trim().startsWith('{') || paramStr.trim().startsWith('[')) {
+      return `// 參數驗證結果：✗ JSON格式錯誤\n// 錯誤信息：${error.message}\n\n// 原始輸入：\n${paramStr}`
+    } else {
+      // 如果不是JSON格式，當作普通文本處理
+      const lines = paramStr.split('\n')
+      const paramCount = lines.filter(line => line.trim() && !line.trim().startsWith('//')).length
+      return `// 參數驗證結果：ℹ 非JSON格式（文本格式）\n// 行數：${lines.length}\n// 有效參數行：${paramCount}\n\n// 原始輸入：\n${paramStr}`
+    }
+  }
 }
 
 // 流程管理相關方法
@@ -1964,23 +2067,117 @@ updateAvailableNodes()
   background-color: white;
 }
 
-/* 條件設置文本框樣式 */
-.category-notes-textarea {
+/* 輸出結果文本框樣式 */
+.parameters-preview-textarea {
   resize: vertical;
-  min-height: 80px;
-  border: 1px solid #e9ecef;
+  min-height: 100px;
+  border: 1px solid #e0e0e0;
   border-radius: 6px;
   padding: 10px 12px;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.4;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background-color: #f9f9f9;
+  color: #666;
+  cursor: default;
 }
 
-.category-notes-textarea:focus {
+.parameters-preview-textarea:focus {
+  outline: none;
+  border-color: #e0e0e0;
+  box-shadow: none;
+}
+
+/* 條件設置樣式 */
+.condition-settings {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.condition-item {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.condition-item:last-child {
+  border-bottom: none;
+}
+
+.condition-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.condition-category {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.condition-index {
+  font-size: 11px;
+  color: #666;
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.condition-fields {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.condition-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.condition-field-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.condition-input,
+.condition-select {
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: border-color 0.2s;
+}
+
+.condition-input:focus,
+.condition-select:focus {
   outline: none;
   border-color: #4285f4;
-  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+.no-categories-hint {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border: 1px dashed #ddd;
+  border-radius: 6px;
+  color: #666;
+}
+
+.hint-icon {
+  font-size: 16px;
+  margin-right: 8px;
+}
+
+.hint-text {
+  font-size: 13px;
 }
 
 .field-hint {
