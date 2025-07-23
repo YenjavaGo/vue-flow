@@ -137,6 +137,29 @@
           <div style="margin-bottom: 10px;">
             <strong>標籤:</strong> {{ selectedNode.data?.label }}
           </div>
+          <div v-if="selectedNode.data?.inputParameters" style="margin-bottom: 10px;">
+            <strong>輸入參數:</strong>
+            <div style="margin-top: 4px; padding: 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #34a853;">
+              <pre style="font-size: 12px; color: #333; line-height: 1.4; margin: 0; white-space: pre-wrap; font-family: 'Courier New', monospace;">{{ selectedNode.data.inputParameters }}</pre>
+            </div>
+          </div>
+          <div v-if="selectedNode.data?.categories && selectedNode.data.categories.length > 0" style="margin-bottom: 10px;">
+            <strong>分類:</strong>
+            <div style="margin-top: 4px;">
+              <span 
+                v-for="(category, index) in selectedNode.data.categories" 
+                :key="index"
+                style="display: inline-block; background: rgba(66, 133, 244, 0.1); color: #4285f4; font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 8px; border: 1px solid rgba(66, 133, 244, 0.2); margin-right: 4px; margin-bottom: 2px;"
+              >
+                {{ category }}
+              </span>
+            </div>
+            <!-- 條件設置 -->
+            <div v-if="selectedNode.data?.categoryNotes" style="margin-top: 6px; padding: 6px 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #4285f4;">
+              <div style="font-size: 11px; color: #666; margin-bottom: 2px;">條件設置:</div>
+              <div style="font-size: 12px; color: #333; line-height: 1.4;">{{ selectedNode.data.categoryNotes }}</div>
+            </div>
+          </div>
           <div style="margin-bottom: 15px;">
             <strong>位置:</strong> 
             x: {{ Math.round(selectedNode.position.x) }}, 
@@ -229,6 +252,66 @@
           </div>
           
           <div class="form-group">
+            <label>輸入參數</label>
+            <textarea 
+              v-model="editingNode.inputParameters" 
+              class="form-textarea input-parameters-textarea"
+              placeholder="定義節點的輸入參數，json格式，例如：{'code':'1','name':'國中'}"
+              rows="4"
+            ></textarea>
+            <div class="field-hint">
+              描述此節點需要的輸入參數，包括參數名稱、類型、是否必填等信息
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>分類標籤</label>
+            <div class="categories-editor">
+              <div v-if="editingNode.categories && editingNode.categories.length > 0" class="current-categories">
+                <div 
+                  v-for="(category, index) in editingNode.categories" 
+                  :key="index"
+                  class="category-item"
+                >
+                  <input 
+                    v-model="editingNode.categories[index]" 
+                    type="text" 
+                    class="category-input"
+                    placeholder="分類名稱"
+                  />
+                  <button 
+                    type="button"
+                    class="remove-category-btn"
+                    @click="removeCategory(index)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <button 
+                type="button"
+                class="add-category-btn"
+                @click="addCategory"
+              >
+                ＋ 新增分類
+              </button>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>條件設置</label>
+            <textarea 
+              v-model="editingNode.categoryNotes" 
+              class="form-textarea category-notes-textarea"
+              placeholder="描述這些分類的用途、關係或特殊說明..."
+              rows="3"
+            ></textarea>
+            <div class="field-hint">
+              可以在此說明分類的業務含義、使用場景或分類間的關係
+            </div>
+          </div>
+          
+          <div class="form-group">
             <label>業務配置</label>
             <div class="config-section">
               
@@ -256,7 +339,7 @@
               </div>
               
               <!-- 動態配置根據節點類型 -->
-              <template v-if="editingNode.type === 'auth'">
+              <template v-if="editingNode.type === 'auth' || editingNode.type === 'account' || editingNode.type === 'transaction' || editingNode.type === 'risk' || editingNode.type === 'payment'">
                 <div class="config-item">
                   <label class="config-label">認證方式</label>
                   <select v-model="editingNode.config.authMethod" class="config-select">
@@ -289,51 +372,7 @@
                 </div>
               </template>
               
-              <template v-else-if="editingNode.type === 'transaction'">
-                <div class="config-item">
-                  <label class="config-label">最大交易金額</label>
-                  <input 
-                    v-model.number="editingNode.config.maxAmount" 
-                    type="number" 
-                    class="config-input"
-                    min="1"
-                  />
-                </div>
-                
-                <div class="config-item">
-                  <label class="config-label">支援幣別</label>
-                  <input 
-                    v-model="editingNode.config.currencies" 
-                    type="text" 
-                    class="config-input"
-                    placeholder="如: TWD,USD,EUR"
-                  />
-                </div>
-              </template>
-              
-              <template v-else-if="editingNode.type === 'risk'">
-                <div class="config-item">
-                  <label class="config-label">風險閾值</label>
-                  <input 
-                    v-model.number="editingNode.config.riskThreshold" 
-                    type="number" 
-                    class="config-input"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                  />
-                </div>
-                
-                <div class="config-item">
-                  <label class="config-checkbox">
-                    <input 
-                      v-model="editingNode.config.autoBlock" 
-                      type="checkbox"
-                    />
-                    自動攔截高風險交易
-                  </label>
-                </div>
-              </template>
+
               
               <template v-else-if="editingNode.type === 'fraud'">
                 <div class="config-item">
@@ -383,52 +422,7 @@
                 </div>
               </template>
               
-              <template v-else-if="editingNode.type === 'payment'">
-                <div class="config-item">
-                  <label class="config-label">支付閘道</label>
-                  <input 
-                    v-model="editingNode.config.gateways" 
-                    type="text" 
-                    class="config-input"
-                    placeholder="如: visa,mastercard,applepay"
-                  />
-                </div>
-                
-                <div class="config-item">
-                  <label class="config-label">手續費率 (%)</label>
-                  <input 
-                    v-model.number="editingNode.config.feeRate" 
-                    type="number" 
-                    class="config-input"
-                    min="0"
-                    max="10"
-                    step="0.01"
-                  />
-                </div>
-              </template>
-              
-              <template v-else-if="editingNode.type === 'account'">
-                <div class="config-item">
-                  <label class="config-label">帳戶類型</label>
-                  <input 
-                    v-model="editingNode.config.accountTypes" 
-                    type="text" 
-                    class="config-input"
-                    placeholder="如: 儲蓄,支票,信用"
-                  />
-                </div>
-                
-                <div class="config-item">
-                  <label class="config-label">最大帳戶數</label>
-                  <input 
-                    v-model.number="editingNode.config.maxAccounts" 
-                    type="number" 
-                    class="config-input"
-                    min="1"
-                    max="100"
-                  />
-                </div>
-              </template>
+
               
               <template v-else-if="editingNode.type === 'audit'">
                 <div class="config-item">
@@ -584,7 +578,10 @@ const editingNode = ref({
   label: '',
   description: '',
   type: '',
+  inputParameters: '',
   config: {},
+  categories: [],
+  categoryNotes: '',
   notes: ''
 })
 
@@ -592,40 +589,40 @@ const editingNode = ref({
 const availableNodes = ref([
   {
     id: 'auth',
-    name: '用戶認證系統',
-    type: '核心系統',
+    name: '用戶認證',
+    type: 'RESTful API',
     icon: '🔐',
     color: '#4285f4',
     nodeType: 'custom'
   },
   {
     id: 'account',
-    name: '帳戶管理系統',
-    type: '核心系統',
+    name: '帳戶管理',
+    type: 'RESTful API',
     icon: '👤',
     color: '#34a853',
     nodeType: 'custom'
   },
   {
     id: 'transaction',
-    name: '交易處理系統',
-    type: '核心系統',
+    name: '交易處理',
+    type: 'RESTful API',
     icon: '💰',
     color: '#ea4335',
     nodeType: 'custom'
   },
   {
     id: 'risk',
-    name: '風險控制系統',
-    type: '核心系統',
+    name: '風險控制',
+    type: 'RESTful API',
     icon: '🛡️',
     color: '#ff9800',
     nodeType: 'custom'
   },
   {
     id: 'payment',
-    name: '支付閘道系統',
-    type: '核心系統',
+    name: '支付閘道',
+    type: 'RESTful API',
     icon: '💳',
     color: '#9c27b0',
     nodeType: 'custom'
@@ -722,10 +719,16 @@ const onEdgeClick = (event) => {
 
 // 連接事件 - 當用戶拖拽連接兩個節點時觸發
 const onConnect = (connection) => {
+  // 生成唯一的edge ID，包含連接點信息
+  const sourceHandle = connection.sourceHandle || 'source'
+  const targetHandle = connection.targetHandle || 'target'
+  
   const newEdge = {
-    id: `edge-${connection.source}-${connection.target}`,
+    id: `edge-${connection.source}-${sourceHandle}-${connection.target}-${targetHandle}`,
     source: connection.source,
     target: connection.target,
+    sourceHandle: sourceHandle,
+    targetHandle: targetHandle,
     type: 'smoothstep'
   }
   edges.value.push(newEdge)
@@ -788,6 +791,26 @@ const onDrop = async (event) => {
   
   const position = { x: finalX, y: finalY }
 
+  // 根據節點類型生成默認分類
+  const getDefaultCategories = (nodeId) => {
+    const categoryMap = {
+      'auth': [],
+      'account': [],
+      'transaction': [],
+      'risk': [],
+      'payment': [],
+      'verify': [],
+      'balance': [],
+      'validate': [],
+      'fraud': [],
+      'notify': [],
+      'audit': [],
+      'report': [],
+      'sync': []
+    }
+    return categoryMap[nodeId] || []
+  }
+
   const newNode = {
     id: `${nodeData.id}_${Date.now()}`,
     type: nodeData.nodeType,
@@ -797,7 +820,8 @@ const onDrop = async (event) => {
       subtitle: nodeData.type,
       icon: nodeData.icon,
       color: nodeData.color,
-      status: 'pending'
+      status: 'pending',
+      categories: getDefaultCategories(nodeData.id)
     }
   }
 
@@ -1004,21 +1028,24 @@ const getDefaultConfig = (nodeType) => {
       multiFactorAuth: true
     },
     'account': {
-      accountTypes: '儲蓄,支票,信用',
-      maxAccounts: 10
+      authMethod: 'oauth2',
+      sessionTimeout: 3600,
+      multiFactorAuth: true
     },
     'transaction': {
-      maxAmount: 1000000,
-      currencies: 'TWD,USD,EUR'
+      authMethod: 'oauth2',
+      sessionTimeout: 3600,
+      multiFactorAuth: true
     },
     'risk': {
-      riskThreshold: 0.7,
-      autoBlock: true,
-      alertLevel: 'medium'
+      authMethod: 'oauth2',
+      sessionTimeout: 3600,
+      multiFactorAuth: true
     },
     'payment': {
-      gateways: 'visa,mastercard,applepay',
-      feeRate: 2.5
+      authMethod: 'oauth2',
+      sessionTimeout: 3600,
+      multiFactorAuth: true
     },
     'verify': {
       methods: ['sms', 'email', 'biometric'],
@@ -1069,7 +1096,10 @@ const openEditModal = (node) => {
     label: node.data?.label || '',
     description: node.data?.description || '',
     type: nodeType,
+    inputParameters: node.data?.inputParameters || '',
     config: { ...getDefaultConfig(nodeType), ...(node.data?.config || {}) },
+    categories: [...(node.data?.categories || [])],
+    categoryNotes: node.data?.categoryNotes || '',
     notes: node.data?.notes || ''
   }
   
@@ -1084,7 +1114,10 @@ const closeEditModal = () => {
     label: '',
     description: '',
     type: '',
+    inputParameters: '',
     config: {},
+    categories: [],
+    categoryNotes: '',
     notes: ''
   }
 }
@@ -1094,18 +1127,34 @@ const saveNodeChanges = () => {
   const nodeIndex = nodes.value.findIndex(node => node.id === editingNode.value.id)
   
   if (nodeIndex !== -1) {
+    // 過濾掉空的分類
+    const filteredCategories = editingNode.value.categories.filter(cat => cat.trim() !== '')
+    
     // 更新節點數據
     nodes.value[nodeIndex].data = {
       ...nodes.value[nodeIndex].data,
       label: editingNode.value.label,
       description: editingNode.value.description,
+      inputParameters: editingNode.value.inputParameters,
       config: { ...editingNode.value.config },
+      categories: filteredCategories,
+      categoryNotes: editingNode.value.categoryNotes,
       notes: editingNode.value.notes
     }
     
     console.log('節點配置已更新:', editingNode.value)
     closeEditModal()
   }
+}
+
+// 新增分類
+const addCategory = () => {
+  editingNode.value.categories.push('')
+}
+
+// 移除分類
+const removeCategory = (index) => {
+  editingNode.value.categories.splice(index, 1)
 }
 
 // 流程管理相關方法
@@ -1815,6 +1864,130 @@ updateAvailableNodes()
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 6px;
+}
+
+/* 分類編輯器樣式 */
+.categories-editor {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8f9fa;
+}
+
+.current-categories {
+  margin-bottom: 12px;
+}
+
+.category-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.category-item:last-child {
+  margin-bottom: 0;
+}
+
+.category-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.category-input:focus {
+  outline: none;
+  border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+.remove-category-btn {
+  padding: 4px 8px;
+  border: none;
+  background: #f44336;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-category-btn:hover {
+  background: #d32f2f;
+  transform: scale(1.05);
+}
+
+.add-category-btn {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px dashed #4285f4;
+  background: transparent;
+  color: #4285f4;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.add-category-btn:hover {
+  background: rgba(66, 133, 244, 0.05);
+  border-style: solid;
+}
+
+/* 輸入參數文本框樣式 */
+.input-parameters-textarea {
+  resize: vertical;
+  min-height: 100px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #fafafa;
+}
+
+.input-parameters-textarea:focus {
+  outline: none;
+  border-color: #34a853;
+  box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+  background-color: white;
+}
+
+/* 條件設置文本框樣式 */
+.category-notes-textarea {
+  resize: vertical;
+  min-height: 80px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.category-notes-textarea:focus {
+  outline: none;
+  border-color: #4285f4;
+  box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  line-height: 1.3;
 }
 
 .modal-footer {

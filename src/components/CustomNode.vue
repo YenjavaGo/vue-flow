@@ -8,6 +8,7 @@
       'node-error': data.status === 'error'
     }"
   >
+    <!-- 主要輸入連接點 -->
     <Handle
       id="target"
       type="target"
@@ -23,9 +24,34 @@
       >
         {{ getDisplayIcon() }}
       </div>
-      <div>
+      <div class="node-content">
         <div class="node-title">{{ data.label }}</div>
         <div class="node-subtitle">{{ data.subtitle }}</div>
+        
+        <!-- 分類顯示和連接點 -->
+        <div v-if="data.categories && data.categories.length > 0" class="node-categories">
+          <div 
+            v-for="(category, index) in data.categories" 
+            :key="index"
+            class="category-item-with-handle"
+          >
+            <span class="category-tag">
+              {{ category }}
+            </span>
+            <!-- 每個分類的輸出連接點 -->
+            <Handle
+              :id="`source-category-${index}`"
+              type="source"
+              :position="Position.Right"
+              :style="handleStyle"
+              :connectable="true"
+              class="category-handle"
+            />
+          </div>
+        </div>
+        
+        <!-- 狀態顯示 -->
+        
         <div v-if="data.status === 'running'" class="node-status running">執行中...</div>
         <div v-if="data.status === 'success'" class="node-status success">✓ 完成</div>
         <div v-if="data.status === 'error'" class="node-status error">✗ 失敗</div>
@@ -37,7 +63,9 @@
       {{ data.errorMessage }}
     </div>
     
+    <!-- 如果沒有分類，顯示默認的輸出連接點 -->
     <Handle
+      v-if="!data.categories || data.categories.length === 0"
       id="source"
       type="source"
       :position="Position.Right"
@@ -81,6 +109,9 @@ const handleStyle = {
   border: '2px solid white',
   borderRadius: '50%'
 }
+
+// 移除不需要的分類連接點樣式函數
+// 現在使用CSS類來處理位置
 </script>
 
 <style scoped>
@@ -92,6 +123,7 @@ const handleStyle = {
   min-width: 150px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
+  position: relative;
 }
 
 .custom-node:hover {
@@ -100,7 +132,12 @@ const handleStyle = {
 
 .node-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  position: relative;
+}
+
+.node-content {
+  flex: 1;
 }
 
 .node-icon {
@@ -130,6 +167,45 @@ const handleStyle = {
   margin-top: 2px;
   line-height: 1.2;
 }
+
+.node-categories {
+  margin-top: 6px;
+}
+
+.category-item-with-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  position: relative;
+  min-height: 24px;
+}
+
+.category-item-with-handle:last-child {
+  margin-bottom: 0;
+}
+
+.category-tag {
+  background: rgba(66, 133, 244, 0.1);
+  color: #4285f4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(66, 133, 244, 0.2);
+  flex: 1;
+  margin-right: 20px;
+}
+
+/* 分類連接點的特殊樣式 */
+.category-handle {
+  position: static !important;
+  transform: none !important;
+  margin-left: auto;
+  margin-right: -5px;
+}
+
+/* 移除不需要的默認連接點樣式 */
 
 .node-status {
   font-size: 11px;

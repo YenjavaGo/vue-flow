@@ -1,12 +1,12 @@
 {
   "categories": [
     {
-      "name": "核心系統",
+      "name": "RESTful API",
       "nodes": [
         {
           "id": "auth",
-          "name": "用戶認證系統",
-          "type": "核心系統",
+          "name": "用戶認證",
+          "type": "RESTful API",
           "description": "負責用戶登入驗證、會話管理和權限控制",
           "icon": "🔐",
           "color": "#4285f4",
@@ -19,8 +19,8 @@
         },
         {
           "id": "account",
-          "name": "帳戶管理系統",
-          "type": "核心系統",
+          "name": "帳戶管理",
+          "type": "RESTful API",
           "description": "管理用戶帳戶資訊、帳戶狀態和基本資料",
           "icon": "👤",
           "color": "#34a853",
@@ -32,8 +32,8 @@
         },
         {
           "id": "transaction",
-          "name": "交易處理系統",
-          "type": "核心系統",
+          "name": "交易處理",
+          "type": "RESTful API",
           "description": "處理所有金融交易的核心引擎",
           "icon": "💰",
           "color": "#ea4335",
@@ -46,8 +46,8 @@
         },
         {
           "id": "risk",
-          "name": "風險控制系統",
-          "type": "核心系統",
+          "name": "風險控制",
+          "type": "RESTful API",
           "description": "實時風險評估和控制措施執行",
           "icon": "🛡️",
           "color": "#ff9800",
@@ -60,8 +60,8 @@
         },
         {
           "id": "payment",
-          "name": "支付閘道系統",
-          "type": "核心系統",
+          "name": "支付閘道",
+          "type": "RESTful API",
           "description": "整合多種支付方式和第三方支付服務",
           "icon": "💳",
           "color": "#9c27b0",
