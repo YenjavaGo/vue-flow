@@ -11,7 +11,7 @@
     <Handle
       id="target"
       type="target"
-      :position="Position.Top"
+      :position="Position.Left"
       :style="handleStyle"
       :connectable="true"
     />
@@ -40,7 +40,7 @@
     <Handle
       id="source"
       type="source"
-      :position="Position.Bottom"
+      :position="Position.Right"
       :style="handleStyle"
       :connectable="true"
     />
