@@ -52,6 +52,27 @@
           <div class="summary-item error" v-if="executionSummary.errorCount > 0">
             <span>失敗: {{ executionSummary.errorCount }}</span>
           </div>
+          
+          <!-- 顯示條件檢查詳情 -->
+          <div v-if="executionSummary.results && executionSummary.results.length > 0" class="condition-details">
+            <div class="condition-header">執行路徑:</div>
+            <div 
+              v-for="(result, index) in executionSummary.results" 
+              :key="index"
+              class="condition-item"
+              :class="{ 'condition-success': result.success, 'condition-error': !result.success }"
+            >
+              <div class="condition-node">
+                {{ getNodeLabel(result.nodeId) }}
+              </div>
+              <div v-if="result.conditionCheck" class="condition-message">
+                {{ result.conditionCheck.message }}
+              </div>
+              <div v-if="result.conditionCheck && result.conditionCheck.matchedCategory" class="condition-match">
+                匹配分類: {{ result.conditionCheck.matchedCategory }}
+              </div>
+            </div>
+          </div>
         </div>
         
         <!-- 流程管理按鈕 -->
@@ -267,7 +288,7 @@
             <textarea 
               v-model="editingNode.inputParameters" 
               class="form-textarea input-parameters-textarea"
-              placeholder="定義節點的輸入參數，json格式，例如：'{'code':'1','name':'國中'}'"
+              placeholder='定義節點的輸入參數，json格式，例如：{"code":"1","name":"國中"}'
               rows="4"
             ></textarea>
             <div class="field-hint">
@@ -927,9 +948,18 @@ const executeFlow = async () => {
         isExecuting.value = false
         
         // 顯示執行結果
-        const message = summary.errorCount > 0 
+        let message = summary.errorCount > 0 
           ? `流程執行完成！成功: ${summary.successCount}，失敗: ${summary.errorCount}`
           : `流程執行成功！所有 ${summary.successCount} 個節點都已完成`
+        
+        // 如果有條件檢查失敗，添加詳細信息
+        const failedResults = summary.results.filter(r => !r.success)
+        if (failedResults.length > 0) {
+          const errorDetails = failedResults.map(r => 
+            `${getNodeLabel(r.nodeId)}: ${r.error}`
+          ).join('\n')
+          message += `\n\n錯誤詳情:\n${errorDetails}`
+        }
         
         alert(message)
         
@@ -1036,6 +1066,7 @@ const deleteSelectedEdge = () => {
 
 // 獲取節點標籤（用於顯示邊的來源和目標節點名稱）
 const getNodeLabel = (nodeId) => {
+  if (nodeId === 'system') return '系統'
   const node = nodes.value.find(n => n.id === nodeId)
   return node ? node.data?.label : nodeId
 }
@@ -1527,6 +1558,55 @@ updateAvailableNodes()
 .summary-item.error {
   color: #f44336;
   font-weight: 500;
+}
+
+/* 條件檢查詳情樣式 */
+.condition-details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e9ecef;
+}
+
+.condition-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.condition-item {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.condition-success {
+  background: #e8f5e8;
+  border-left: 3px solid #4caf50;
+}
+
+.condition-error {
+  background: #ffebee;
+  border-left: 3px solid #f44336;
+}
+
+.condition-node {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.condition-message {
+  color: #666;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.condition-match {
+  color: #4285f4;
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 2px;
 }
 
 @keyframes executing-pulse {

@@ -3,6 +3,110 @@
 import { executeNodeApi } from './mockApi.js'
 
 /**
+ * 檢查節點條件並決定下一個執行節點
+ * @param {Object} currentNode - 當前節點
+ * @param {Array} edges - 邊清單
+ * @param {Array} nodes - 所有節點
+ * @returns {Object} 條件檢查結果
+ */
+function checkNodeConditions(currentNode, edges, nodes) {
+  const nodeData = currentNode.data
+  
+  // 1. 如果沒有分類，直接前往下一個節點
+  if (!nodeData.categories || nodeData.categories.length === 0) {
+    const nextNodeId = findNextNode(currentNode.id, edges, null)
+    return {
+      success: true,
+      nextNodeId: nextNodeId,
+      message: '無條件設置，前往下一個節點'
+    }
+  }
+  
+  // 2. 有分類的情況下，需要解析輸入參數並比對條件
+  try {
+    // 解析輸入參數JSON
+    let inputParams = {}
+    if (nodeData.inputParameters && nodeData.inputParameters.trim()) {
+      inputParams = JSON.parse(nodeData.inputParameters)
+    } else {
+      return {
+        success: false,
+        error: '輸出結果為空，參數有誤',
+        message: '節點設置了條件但沒有輸入參數'
+      }
+    }
+    
+    // 3. 檢查條件設置並找到匹配的分類
+    const conditions = nodeData.categoryConditions || []
+    const categories = nodeData.categories || []
+    
+    for (let i = 0; i < conditions.length; i++) {
+      const condition = conditions[i]
+      const category = categories[i]
+      
+      // 檢查條件是否完整
+      if (!condition.parameter || !condition.value) {
+        continue
+      }
+      
+      // 檢查參數是否匹配
+      const paramValue = inputParams[condition.parameter]
+      if (paramValue !== undefined && String(paramValue) === String(condition.value)) {
+        // 找到匹配的條件，尋找對應分類的連接點
+        const nextNodeId = findNextNode(currentNode.id, edges, `source-category-${i}`)
+        
+        return {
+          success: true,
+          nextNodeId: nextNodeId,
+          matchedCategory: category,
+          matchedCondition: condition,
+          message: `條件匹配：${condition.parameter} = ${condition.value}，前往分類「${category}」的下一個節點`
+        }
+      }
+    }
+    
+    // 沒有找到匹配的條件
+    return {
+      success: false,
+      error: '沒有匹配的條件',
+      message: '輸入參數與所有條件設置都不匹配，流程中斷'
+    }
+    
+  } catch (error) {
+    return {
+      success: false,
+      error: '輸入參數JSON格式錯誤',
+      message: `無法解析輸入參數：${error.message}`
+    }
+  }
+}
+
+/**
+ * 尋找下一個節點
+ * @param {String} currentNodeId - 當前節點ID
+ * @param {Array} edges - 邊清單
+ * @param {String} sourceHandle - 來源連接點ID (null表示預設連接點)
+ * @returns {String} 下一個節點ID
+ */
+function findNextNode(currentNodeId, edges, sourceHandle) {
+  // 尋找從當前節點出發的邊
+  const matchingEdges = edges.filter(edge => {
+    if (edge.source !== currentNodeId) return false
+    
+    // 如果指定了源連接點，則需要完全匹配
+    if (sourceHandle !== null) {
+      return edge.sourceHandle === sourceHandle
+    }
+    
+    // 如果沒有指定源連接點，則匹配預設連接點或沒有sourceHandle的邊
+    return !edge.sourceHandle || edge.sourceHandle === 'source'
+  })
+  
+  // 返回第一個匹配的目標節點
+  return matchingEdges.length > 0 ? matchingEdges[0].target : null
+}
+
+/**
  * 使用拓撲排序確定節點執行順序
  * @param {Array} nodes - 節點清單
  * @param {Array} edges - 邊清單
@@ -73,76 +177,122 @@ export function getExecutionOrder(nodes, edges) {
 }
 
 /**
- * 執行整個流程
+ * 執行整個流程（基於條件的動態執行）
  * @param {Array} nodes - 節點清單
  * @param {Array} edges - 邊清單
  * @param {Function} onNodeUpdate - 節點狀態更新回調函數
  * @param {Function} onComplete - 流程完成回調函數
  */
 export async function executeFlow(nodes, edges, onNodeUpdate, onComplete) {
-  // 獲取執行順序
-  const executionOrder = getExecutionOrder(nodes, edges)
-  
-  console.log('流程執行順序:', executionOrder.map(node => node.data.label))
-  
   // 重置所有節點狀態
   nodes.forEach(node => {
     onNodeUpdate(node.id, { status: 'pending', errorMessage: null })
   })
   
   const results = []
-  let hasError = false
+  const executedNodes = new Set()
   
-  // 按順序執行節點
-  for (const node of executionOrder) {
-    if (hasError) {
-      // 如果前面有節點失敗，標記剩餘節點為跳過
-      onNodeUpdate(node.id, { status: 'pending', errorMessage: '因前置節點失敗而跳過' })
-      continue
+  // 找到起始節點（入度為0的節點）
+  const startingNodes = findStartingNodes(nodes, edges)
+  
+  if (startingNodes.length === 0) {
+    const summary = {
+      totalNodes: 0,
+      successCount: 0,
+      errorCount: 1,
+      results: [{ nodeId: 'system', success: false, error: '找不到起始節點' }]
     }
-    
+    onComplete(summary)
+    return summary
+  }
+  
+  console.log('流程開始執行，起始節點:', startingNodes.map(n => n.data.label))
+  
+  // 從起始節點開始執行
+  let currentNode = startingNodes[0]
+  
+  while (currentNode && !executedNodes.has(currentNode.id)) {
     try {
       // 標記節點為執行中
-      onNodeUpdate(node.id, { status: 'running', errorMessage: null })
+      onNodeUpdate(currentNode.id, { status: 'running', errorMessage: null })
+      executedNodes.add(currentNode.id)
+      
+      console.log(`開始執行節點: ${currentNode.data.label}`)
+      
+      // 檢查節點條件
+      const conditionResult = checkNodeConditions(currentNode, edges, nodes)
+      
+      if (!conditionResult.success) {
+        // 條件檢查失敗，中斷流程
+        onNodeUpdate(currentNode.id, { 
+          status: 'error', 
+          errorMessage: conditionResult.error || conditionResult.message 
+        })
+        
+        results.push({
+          nodeId: currentNode.id,
+          success: false,
+          error: conditionResult.error || conditionResult.message,
+          conditionCheck: conditionResult
+        })
+        
+        console.error(`節點 ${currentNode.data.label} 條件檢查失敗:`, conditionResult.message)
+        break
+      }
       
       // 執行節點API
-      const result = await executeNodeApi(node)
+      const apiResult = await executeNodeApi(currentNode)
       
       // 標記節點為成功
-      onNodeUpdate(node.id, { status: 'success', errorMessage: null })
+      onNodeUpdate(currentNode.id, { status: 'success', errorMessage: null })
       
       results.push({
-        nodeId: node.id,
+        nodeId: currentNode.id,
         success: true,
-        result: result
+        result: apiResult,
+        conditionCheck: conditionResult
       })
       
-      console.log(`節點 ${node.data.label} 執行成功`)
+      console.log(`節點 ${currentNode.data.label} 執行成功:`, conditionResult.message)
+      
+      // 尋找下一個節點
+      if (conditionResult.nextNodeId) {
+        currentNode = nodes.find(n => n.id === conditionResult.nextNodeId)
+        if (currentNode) {
+          console.log(`下一個節點: ${currentNode.data.label}`)
+        } else {
+          console.log('找不到下一個節點，流程結束')
+          break
+        }
+      } else {
+        console.log('沒有下一個節點，流程結束')
+        break
+      }
       
     } catch (error) {
-      // 標記節點為失敗
-      onNodeUpdate(node.id, { 
+      // 節點執行失敗
+      onNodeUpdate(currentNode.id, { 
         status: 'error', 
         errorMessage: error.message 
       })
       
       results.push({
-        nodeId: node.id,
+        nodeId: currentNode.id,
         success: false,
         error: error.message
       })
       
-      console.error(`節點 ${node.data.label} 執行失敗:`, error.message)
-      hasError = true
+      console.error(`節點 ${currentNode.data.label} 執行失敗:`, error.message)
+      break
     }
     
     // 在節點之間添加小延遲，讓用戶能看到執行過程
-    await new Promise(resolve => setTimeout(resolve, 300))
+    await new Promise(resolve => setTimeout(resolve, 500))
   }
   
   // 流程執行完成
   const summary = {
-    totalNodes: executionOrder.length,
+    totalNodes: executedNodes.size,
     successCount: results.filter(r => r.success).length,
     errorCount: results.filter(r => !r.success).length,
     results: results
@@ -152,6 +302,46 @@ export async function executeFlow(nodes, edges, onNodeUpdate, onComplete) {
   onComplete(summary)
   
   return summary
+}
+
+/**
+ * 尋找起始節點（入度為0的節點）
+ * @param {Array} nodes - 節點清單
+ * @param {Array} edges - 邊清單
+ * @returns {Array} 起始節點清單
+ */
+function findStartingNodes(nodes, edges) {
+  const inDegree = new Map()
+  
+  // 初始化所有節點的入度為0
+  nodes.forEach(node => {
+    inDegree.set(node.id, 0)
+  })
+  
+  // 計算每個節點的入度
+  edges.forEach(edge => {
+    if (inDegree.has(edge.target)) {
+      inDegree.set(edge.target, inDegree.get(edge.target) + 1)
+    }
+  })
+  
+  // 返回入度為0的節點
+  const startingNodes = []
+  inDegree.forEach((degree, nodeId) => {
+    if (degree === 0) {
+      const node = nodes.find(n => n.id === nodeId)
+      if (node) {
+        startingNodes.push(node)
+      }
+    }
+  })
+  
+  // 如果沒有找到起始節點，返回第一個節點
+  if (startingNodes.length === 0 && nodes.length > 0) {
+    startingNodes.push(nodes[0])
+  }
+  
+  return startingNodes
 }
 
 /**
