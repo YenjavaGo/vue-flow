@@ -238,6 +238,31 @@ export const callSyncApi = async (nodeData) => {
   }
 }
 
+// 流程開始節點API
+export const callStartApi = async (nodeData) => {
+  await new Promise(resolve => setTimeout(resolve, 500)) // 較短的延遲
+  
+  return {
+    success: true,
+    result: `流程開始: ${nodeData.label}`,
+    startTime: new Date().toISOString(),
+    flowId: `FLOW_${Date.now()}`,
+    status: '流程已啟動'
+  }
+}
+
+// 流程結束節點API
+export const callEndApi = async (nodeData) => {
+  await new Promise(resolve => setTimeout(resolve, 500)) // 較短的延遲
+  
+  return {
+    success: true,
+    result: `流程結束: ${nodeData.label}`,
+    endTime: new Date().toISOString(),
+    status: '流程已完成'
+  }
+}
+
 // 節點類型到API的映射
 const apiMapping = {
   'auth': callAuthApi,
@@ -252,7 +277,9 @@ const apiMapping = {
   'notify': callNotifyApi,
   'audit': callAuditApi,
   'report': callReportApi,
-  'sync': callSyncApi
+  'sync': callSyncApi,
+  'start': callStartApi,
+  'end': callEndApi
 }
 
 // 主要的API調用函數

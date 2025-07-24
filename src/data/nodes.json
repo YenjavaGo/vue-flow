@@ -1,6 +1,37 @@
 {
   "categories": [
     {
+      "name": "流程控制",
+      "nodes": [
+        {
+          "id": "start",
+          "name": "開始",
+          "type": "流程控制",
+          "description": "流程的起始節點，定義流程的入口點",
+          "icon": "🚀",
+          "color": "#4caf50",
+          "nodeType": "custom",
+          "config": {
+            "autoStart": true,
+            "initializeData": true
+          }
+        },
+        {
+          "id": "end",
+          "name": "結束",
+          "type": "流程控制",
+          "description": "流程的結束節點，標記流程執行完成",
+          "icon": "🏁",
+          "color": "#f44336",
+          "nodeType": "custom",
+          "config": {
+            "autoComplete": true,
+            "generateReport": true
+          }
+        }
+      ]
+    },
+    {
       "name": "RESTful API",
       "nodes": [
         {

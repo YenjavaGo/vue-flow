@@ -184,6 +184,23 @@ export function getExecutionOrder(nodes, edges) {
  * @param {Function} onComplete - 流程完成回調函數
  */
 export async function executeFlow(nodes, edges, onNodeUpdate, onComplete) {
+  // 檢查是否有開始節點
+  const startNodes = nodes.filter(node => {
+    const nodeType = node.id.split('_')[0]
+    return nodeType === 'start'
+  })
+  
+  if (startNodes.length === 0) {
+    const summary = {
+      totalNodes: 0,
+      successCount: 0,
+      errorCount: 1,
+      results: [{ nodeId: 'system', success: false, error: '找不到開始的進入點' }]
+    }
+    onComplete(summary)
+    return summary
+  }
+  
   // 重置所有節點狀態
   nodes.forEach(node => {
     onNodeUpdate(node.id, { status: 'pending', errorMessage: null })
@@ -192,24 +209,13 @@ export async function executeFlow(nodes, edges, onNodeUpdate, onComplete) {
   const results = []
   const executedNodes = new Set()
   
-  // 找到起始節點（入度為0的節點）
-  const startingNodes = findStartingNodes(nodes, edges)
+  // 使用第一個開始節點作為起始節點
+  const startingNode = startNodes[0]
   
-  if (startingNodes.length === 0) {
-    const summary = {
-      totalNodes: 0,
-      successCount: 0,
-      errorCount: 1,
-      results: [{ nodeId: 'system', success: false, error: '找不到起始節點' }]
-    }
-    onComplete(summary)
-    return summary
-  }
+  console.log('流程開始執行，起始節點:', startingNode.data.label)
   
-  console.log('流程開始執行，起始節點:', startingNodes.map(n => n.data.label))
-  
-  // 從起始節點開始執行
-  let currentNode = startingNodes[0]
+  // 從開始節點開始執行
+  let currentNode = startingNode
   
   while (currentNode && !executedNodes.has(currentNode.id)) {
     try {
@@ -304,45 +310,7 @@ export async function executeFlow(nodes, edges, onNodeUpdate, onComplete) {
   return summary
 }
 
-/**
- * 尋找起始節點（入度為0的節點）
- * @param {Array} nodes - 節點清單
- * @param {Array} edges - 邊清單
- * @returns {Array} 起始節點清單
- */
-function findStartingNodes(nodes, edges) {
-  const inDegree = new Map()
-  
-  // 初始化所有節點的入度為0
-  nodes.forEach(node => {
-    inDegree.set(node.id, 0)
-  })
-  
-  // 計算每個節點的入度
-  edges.forEach(edge => {
-    if (inDegree.has(edge.target)) {
-      inDegree.set(edge.target, inDegree.get(edge.target) + 1)
-    }
-  })
-  
-  // 返回入度為0的節點
-  const startingNodes = []
-  inDegree.forEach((degree, nodeId) => {
-    if (degree === 0) {
-      const node = nodes.find(n => n.id === nodeId)
-      if (node) {
-        startingNodes.push(node)
-      }
-    }
-  })
-  
-  // 如果沒有找到起始節點，返回第一個節點
-  if (startingNodes.length === 0 && nodes.length > 0) {
-    startingNodes.push(nodes[0])
-  }
-  
-  return startingNodes
-}
+
 
 /**
  * 驗證流程是否可以執行

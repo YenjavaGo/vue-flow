@@ -126,21 +126,47 @@
       <div v-if="!showFlowManager" class="node-panel">
         <h3>可用節點</h3>
         <div
-          v-for="nodeConfig in availableNodes"
-          :key="nodeConfig.id"
-          class="node-item"
-          draggable="true"
-          @dragstart="onDragStart($event, nodeConfig)"
+          v-for="category in nodeCategories"
+          :key="category.name"
+          class="node-category"
         >
           <div 
-            class="node-icon" 
-            :style="{ backgroundColor: nodeConfig.color }"
+            class="category-header"
+            @click="toggleCategory(category.name)"
           >
-            {{ nodeConfig.icon }}
+            <div class="category-info">
+              <span 
+                class="category-toggle"
+                :class="{ 'collapsed': collapsedCategories[category.name] }"
+              >
+                ▼
+              </span>
+              <div class="category-name">{{ category.name }}</div>
+            </div>
+            <div class="category-count">{{ category.nodes.length }}</div>
           </div>
-          <div class="node-info">
-            <div class="node-name">{{ nodeConfig.name }}</div>
-            <div class="node-type">{{ nodeConfig.type }}</div>
+          <div 
+            v-show="!collapsedCategories[category.name]"
+            class="category-nodes"
+          >
+            <div
+              v-for="nodeConfig in category.nodes"
+              :key="nodeConfig.id"
+              class="node-item"
+              draggable="true"
+              @dragstart="onDragStart($event, nodeConfig)"
+            >
+              <div 
+                class="node-icon" 
+                :style="{ backgroundColor: nodeConfig.color }"
+              >
+                {{ nodeConfig.icon }}
+              </div>
+              <div class="node-info">
+                <div class="node-name">{{ nodeConfig.name }}</div>
+                <div class="node-type">{{ nodeConfig.type }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -657,113 +683,25 @@ const editingNode = ref({
   notes: ''
 })
 
-// 帳戶交易系統節點清單
-const availableNodes = ref([
-  {
-    id: 'auth',
-    name: '用戶認證',
-    type: 'RESTful API',
-    icon: '🔐',
-    color: '#4285f4',
-    nodeType: 'custom'
-  },
-  {
-    id: 'account',
-    name: '帳戶管理',
-    type: 'RESTful API',
-    icon: '👤',
-    color: '#34a853',
-    nodeType: 'custom'
-  },
-  {
-    id: 'transaction',
-    name: '交易處理',
-    type: 'RESTful API',
-    icon: '💰',
-    color: '#ea4335',
-    nodeType: 'custom'
-  },
-  {
-    id: 'risk',
-    name: '風險控制',
-    type: 'RESTful API',
-    icon: '🛡️',
-    color: '#ff9800',
-    nodeType: 'custom'
-  },
-  {
-    id: 'payment',
-    name: '支付閘道',
-    type: 'RESTful API',
-    icon: '💳',
-    color: '#9c27b0',
-    nodeType: 'custom'
-  },
-  {
-    id: 'verify',
-    name: '身份驗證服務',
-    type: '微服務',
-    icon: '✅',
-    color: '#2196f3',
-    nodeType: 'custom'
-  },
-  {
-    id: 'balance',
-    name: '餘額查詢服務',
-    type: '微服務',
-    icon: '💵',
-    color: '#607d8b',
-    nodeType: 'custom'
-  },
-  {
-    id: 'validate',
-    name: '交易驗證服務',
-    type: '微服務',
-    icon: '🔍',
-    color: '#795548',
-    nodeType: 'custom'
-  },
-  {
-    id: 'fraud',
-    name: '欺詐檢測服務',
-    type: '微服務',
-    icon: '🚨',
-    color: '#f44336',
-    nodeType: 'custom'
-  },
-  {
-    id: 'notify',
-    name: '通知服務',
-    type: '微服務',
-    icon: '📧',
-    color: '#3f51b5',
-    nodeType: 'custom'
-  },
-  {
-    id: 'audit',
-    name: '審計日誌服務',
-    type: '微服務',
-    icon: '📋',
-    color: '#009688',
-    nodeType: 'custom'
-  },
-  {
-    id: 'report',
-    name: '報表生成服務',
-    type: '微服務',
-    icon: '📊',
-    color: '#e91e63',
-    nodeType: 'custom'
-  },
-  {
-    id: 'sync',
-    name: '資料同步服務',
-    type: '微服務',
-    icon: '🔄',
-    color: '#00bcd4',
-    nodeType: 'custom'
-  }
-])
+// 節點分類資料
+const nodeCategories = ref([])
+
+// 分類折疊狀態
+const collapsedCategories = ref({})
+
+// 計算屬性：根據類型組織節點
+const availableNodes = computed(() => {
+  const nodes = []
+  nodeCategories.value.forEach(category => {
+    nodes.push(...category.nodes)
+  })
+  return nodes
+})
+
+// 切換分類折疊狀態
+const toggleCategory = (categoryName) => {
+  collapsedCategories.value[categoryName] = !collapsedCategories.value[categoryName]
+}
 
 // 節點點擊事件
 const onNodeClick = (event) => {
@@ -878,7 +816,9 @@ const onDrop = async (event) => {
       'notify': [],
       'audit': [],
       'report': [],
-      'sync': []
+      'sync': [],
+      'start': [],
+      'end': []
     }
     return categoryMap[nodeId] || []
   }
@@ -981,22 +921,33 @@ const executeFlow = async () => {
   }
 }
 
-// 更新可用節點的方法（從後端API取得）
-const updateAvailableNodes = async () => {
+// 載入節點分類資料
+const loadNodeCategories = async () => {
   try {
-    // 這裡可以替換為實際的API呼叫
-    // const response = await fetch('/api/nodes')
-    // const nodeData = await response.json()
-    // 或者從JSON檔案載入
-    const { loadNodesFromJson } = await import('./utils/nodeLoader.js')
-    const loadedNodes = loadNodesFromJson()
-    availableNodes.value = loadedNodes
+    // 直接從JSON檔案載入完整的分類結構
+    const nodesModule = await import('./data/nodes.json')
+    const nodesConfig = nodesModule.default
     
-    console.log('節點設定已從JSON更新:', loadedNodes.length, '個節點')
+    // 處理分類資料，確保每個節點都有正確的屬性
+    const categories = nodesConfig.categories.map(category => ({
+      name: category.name,
+      nodes: category.nodes.map(node => ({
+        ...node,
+        category: category.name
+      }))
+    }))
+    
+    nodeCategories.value = categories
+    
+    const totalNodes = categories.reduce((sum, cat) => sum + cat.nodes.length, 0)
+    console.log('節點分類已載入:', categories.length, '個分類，', totalNodes, '個節點')
   } catch (error) {
-    console.error('取得節點設定失敗:', error)
+    console.error('載入節點分類失敗:', error)
   }
 }
+
+// 更新可用節點的方法（保持向後兼容）
+const updateAvailableNodes = loadNodeCategories
 
 // 鍵盤事件處理
 const onKeyDown = (event) => {
@@ -1755,6 +1706,72 @@ updateAvailableNodes()
   font-size: 11px;
   color: #999;
   margin-top: 2px;
+}
+
+/* 節點分類樣式 */
+.node-category {
+  margin-bottom: 20px;
+}
+
+.node-category:last-child {
+  margin-bottom: 0;
+}
+
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.category-header:hover {
+  background: #e9ecef;
+  border-color: #4285f4;
+}
+
+.category-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.category-toggle {
+  font-size: 10px;
+  color: #666;
+  transition: transform 0.2s;
+}
+
+.category-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.category-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.category-count {
+  background: #4285f4;
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.category-nodes {
+  padding-left: 8px;
+  border-left: 2px solid #e9ecef;
 }
 
 /* 操作按鈕組 */
