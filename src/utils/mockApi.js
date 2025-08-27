@@ -4,7 +4,9 @@
 const getRandomDelay = () => Math.random() * 2000 + 500 // 0.5-2.5秒隨機延遲
 
 // 模擬API成功率（90%成功）
-const shouldSucceed = () => Math.random() > 0.1
+// const shouldSucceed = () => Math.random() > 0.1
+// 模擬API成功率（100%成功）
+const shouldSucceed = () => true
 
 // 用戶認證系統API
 export const callAuthApi = async (nodeData) => {
