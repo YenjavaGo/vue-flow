@@ -8,8 +8,9 @@
       'node-error': data.status === 'error'
     }"
   >
-    <!-- 主要輸入連接點 -->
+    <!-- 主要輸入連接點 - 開始節點隱藏左邊連接點 -->
     <Handle
+      v-if="!isStartNode"
       id="target"
       type="target"
       :position="Position.Left"
@@ -38,8 +39,9 @@
             <span class="category-tag">
               {{ category }}
             </span>
-            <!-- 每個分類的輸出連接點 -->
+            <!-- 每個分類的輸出連接點 - 結束節點隱藏右邊連接點 -->
             <Handle
+              v-if="!isEndNode"
               :id="`source-category-${index}`"
               type="source"
               :position="Position.Right"
@@ -63,9 +65,9 @@
       {{ data.errorMessage }}
     </div>
     
-    <!-- 如果沒有分類，顯示默認的輸出連接點 -->
+    <!-- 如果沒有分類，顯示默認的輸出連接點 - 結束節點隱藏右邊連接點 -->
     <Handle
-      v-if="!data.categories || data.categories.length === 0"
+      v-if="(!data.categories || data.categories.length === 0) && !isEndNode"
       id="source"
       type="source"
       :position="Position.Right"
@@ -85,6 +87,16 @@ const props = defineProps({
     type: Object,
     required: true
   }
+})
+
+// 判斷是否為開始節點
+const isStartNode = computed(() => {
+  return props.data.id?.includes('start') || props.data.label === '開始'
+})
+
+// 判斷是否為結束節點
+const isEndNode = computed(() => {
+  return props.data.id?.includes('end') || props.data.label === '結束'
 })
 
 // 根據狀態顯示不同的圖標
