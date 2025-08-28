@@ -105,6 +105,26 @@
           </button>
         </div>
         
+        <!-- 全域變數顯示 -->
+        <div v-if="Object.keys(globalVariables).length > 0" class="global-variables">
+          <div class="global-variables-header">
+            <h4>🌐 全域變數</h4>
+          </div>
+          <div class="global-variables-list">
+            <div 
+              v-for="(variable, name) in globalVariables" 
+              :key="name"
+              class="global-variable-item"
+            >
+              <div class="variable-name">{{ name }}</div>
+              <div class="variable-info">
+                <span class="variable-type">{{ variable.type }}</span>
+                <span class="variable-value">{{ variable.value }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 批量操作按鈕 -->
         <div v-if="nodes.length > 0 || edges.length > 0" class="bulk-actions">
           <button 
@@ -321,8 +341,8 @@
           
           <div class="form-group">
             <div class="parameter-header">
-              <label>輸入參數</label>
-              <button type="button" class="add-param-btn" @click="addParameter" title="新增參數">
+              <label>{{ isFlowControlNode(editingNode.type) && editingNode.type === 'start' ? '全域變數設定' : '輸入參數' }}</label>
+              <button type="button" class="add-param-btn" @click="addParameter" :title="isFlowControlNode(editingNode.type) && editingNode.type === 'start' ? '新增全域變數' : '新增參數'">
                 <span class="plus-icon">+</span>
               </button>
             </div>
@@ -339,7 +359,7 @@
                     v-model="param.name" 
                     type="text" 
                     class="param-input param-name"
-                    placeholder="變數名稱"
+                    :placeholder="isFlowControlNode(editingNode.type) && editingNode.type === 'start' ? '全域變數名稱' : '變數名稱'"
                   />
                 </div>
                 <div class="param-field">
@@ -355,14 +375,14 @@
                     v-model="param.value" 
                     type="text" 
                     class="param-input param-value"
-                    placeholder="值"
+                    :placeholder="isFlowControlNode(editingNode.type) && editingNode.type === 'start' ? '預設值' : '值'"
                   />
                   <input 
                     v-else-if="param.type === 'number'"
                     v-model.number="param.value" 
                     type="number" 
                     class="param-input param-value"
-                    placeholder="值"
+                    :placeholder="isFlowControlNode(editingNode.type) && editingNode.type === 'start' ? '預設值' : '值'"
                   />
                   <select 
                     v-else-if="param.type === 'boolean'"
@@ -386,11 +406,62 @@
             
             <!-- 如果沒有參數，顯示提示 -->
             <div v-else class="no-parameters">
-              <span>尚未新增參數，點擊右上角 + 按鈕新增</span>
+              <span v-if="isFlowControlNode(editingNode.type) && editingNode.type === 'start'">
+                尚未設定全域變數，點擊右上角 + 按鈕新增
+              </span>
+              <span v-else>
+                尚未新增參數，點擊右上角 + 按鈕新增
+              </span>
             </div>
             
             <div class="field-hint">
-              定義此節點需要的輸入參數，包括參數名稱、類型和預設值
+              <span v-if="isFlowControlNode(editingNode.type) && editingNode.type === 'start'">
+                設定此流程的全域變數，這些變數可在流程中的任何節點使用，包括變數名稱、類型和預設值
+              </span>
+              <span v-else>
+                定義此節點需要的輸入參數，包括參數名稱、類型和預設值
+                <span v-if="Object.keys(globalVariables).length > 0" style="display: block; margin-top: 4px; color: #9c27b0; font-size: 11px;">
+                  💡 可使用全域變數：{{ Object.keys(globalVariables).join(', ') }}
+                </span>
+              </span>
+            </div>
+          </div>
+          
+          <!-- 全域變數選擇器（僅非開始、結束節點顯示） -->
+          <div v-if="!isFlowControlNode(editingNode.type)" class="form-group">
+            <div class="global-var-selector-header">
+              <label>🌐 使用全域變數</label>
+              <div v-if="Object.keys(globalVariables).length > 0" class="global-var-hint">
+                點擊變數可快速添加到輸入參數中
+              </div>
+            </div>
+            
+            <div v-if="Object.keys(globalVariables).length > 0" class="global-var-grid">
+              <div 
+                v-for="(variable, name) in globalVariables" 
+                :key="name"
+                class="global-var-card"
+                @click="addGlobalVariableToParams(name, variable)"
+                :title="`點擊添加 ${name} 到輸入參數`"
+              >
+                <div class="var-header">
+                  <span class="var-name">[x] {{ name }}</span>
+                  <span class="var-type-badge" :class="`type-${variable.type}`">
+                    {{ variable.type === 'string' ? 'String' : variable.type === 'number' ? 'Number' : 'Boolean' }}
+                  </span>
+                </div>
+                <div class="var-description">
+                  <span class="var-value">{{ variable.value }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div v-else class="no-global-variables">
+              <div class="no-global-var-icon">📋</div>
+              <div class="no-global-var-text">
+                <strong>尚未設定全域變數</strong>
+                <p>請先在【開始】節點中設定全域變數，執行流程後即可在此處使用</p>
+              </div>
             </div>
           </div>
           
@@ -407,7 +478,7 @@
             </div>
           </div>
           
-          <div class="form-group">
+          <div v-if="!isFlowControlNode(editingNode.type)" class="form-group">
             <label>分類標籤</label>
             <div class="categories-editor">
               <div v-if="editingNode.categories && editingNode.categories.length > 0" class="current-categories">
@@ -441,7 +512,7 @@
             </div>
           </div>
           
-          <div class="form-group">
+          <div v-if="!isFlowControlNode(editingNode.type)" class="form-group">
             <label>條件設置</label>
             <div v-if="editingNode.categories && editingNode.categories.length > 0" class="condition-settings">
               <div 
@@ -481,7 +552,7 @@
             </div>
           </div>
           
-          <div class="form-group">
+          <div v-if="!isFlowControlNode(editingNode.type)" class="form-group">
             <label>業務配置</label>
             <div class="config-section">
               
@@ -703,7 +774,7 @@
 </template>
 
 <script setup>
-import { ref, computed, markRaw, nextTick } from 'vue'
+import { ref, computed, markRaw, nextTick, onMounted } from 'vue'
 // 導入 Vue Flow 核心元件
 import { VueFlow } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
@@ -766,6 +837,9 @@ const collapsedCategories = ref({})
 // 側邊欄展開/收起狀態
 const sidebarCollapsed = ref(false)
 
+// 全域變數狀態
+const globalVariables = ref({})
+
 // 計算屬性：根據類型組織節點
 const availableNodes = computed(() => {
   const nodes = []
@@ -797,6 +871,115 @@ const addParameter = () => {
 // 移除參數
 const removeParameter = (index) => {
   editingNode.value.dynamicParameters.splice(index, 1)
+}
+
+// 判斷是否為流程控制節點
+const isFlowControlNode = (nodeType) => {
+  return nodeType === 'start' || nodeType === 'end'
+}
+
+// 初始化全域變數
+const initializeGlobalVariables = () => {
+  // 清空現有全域變數
+  globalVariables.value = {}
+  
+  // 尋找開始節點
+  const startNodes = nodes.value.filter(node => node.id.includes('start'))
+  
+  startNodes.forEach(startNode => {
+    if (startNode.data?.dynamicParameters) {
+      startNode.data.dynamicParameters.forEach(param => {
+        if (param.name && param.name.trim()) {
+          let value = param.value
+          // 根據類型轉換值
+          if (param.type === 'number') {
+            value = Number(param.value) || 0
+          } else if (param.type === 'boolean') {
+            value = param.value === 'true' || param.value === true
+          }
+          
+          globalVariables.value[param.name.trim()] = {
+            type: param.type,
+            value: value,
+            source: 'start_node'
+          }
+        }
+      })
+    }
+  })
+  
+  console.log('全域變數已初始化:', globalVariables.value)
+}
+
+// 從開始節點更新全域變數（不清空，用於即時更新）
+const updateGlobalVariablesFromStartNode = () => {
+  // 清空現有全域變數
+  globalVariables.value = {}
+  
+  // 尋找開始節點
+  const startNodes = nodes.value.filter(node => node.id.includes('start'))
+  
+  startNodes.forEach(startNode => {
+    if (startNode.data?.dynamicParameters) {
+      startNode.data.dynamicParameters.forEach(param => {
+        if (param.name && param.name.trim()) {
+          let value = param.value
+          // 根據類型轉換值
+          if (param.type === 'number') {
+            value = Number(param.value) || 0
+          } else if (param.type === 'boolean') {
+            value = param.value === 'true' || param.value === true
+          }
+          
+          globalVariables.value[param.name.trim()] = {
+            type: param.type,
+            value: value,
+            source: 'start_node'
+          }
+        }
+      })
+    }
+  })
+  
+  console.log('全域變數已即時更新:', globalVariables.value)
+}
+
+// 獲取全域變數值
+const getGlobalVariable = (variableName) => {
+  return globalVariables.value[variableName]?.value
+}
+
+// 設置全域變數值
+const setGlobalVariable = (variableName, value) => {
+  if (globalVariables.value[variableName]) {
+    globalVariables.value[variableName].value = value
+  }
+}
+
+// 添加全域變數到輸入參數
+const addGlobalVariableToParams = (varName, variable) => {
+  // 檢查是否已經存在同名參數
+  const existingIndex = editingNode.value.dynamicParameters.findIndex(param => param.name === varName)
+  
+  if (existingIndex !== -1) {
+    // 如果已存在，詢問是否更新
+    if (confirm(`參數 "${varName}" 已存在，是否要更新為全域變數的值？`)) {
+      editingNode.value.dynamicParameters[existingIndex] = {
+        name: varName,
+        type: variable.type,
+        value: variable.value
+      }
+      console.log(`全域變數 "${varName}" 已更新到輸入參數中`)
+    }
+  } else {
+    // 如果不存在，新增參數
+    editingNode.value.dynamicParameters.push({
+      name: varName,
+      type: variable.type,
+      value: variable.value
+    })
+    console.log(`全域變數 "${varName}" 已添加到輸入參數中`)
+  }
 }
 
 // 節點點擊事件
@@ -939,6 +1122,14 @@ const onDrop = async (event) => {
   await nextTick()
   console.log('新節點已新增到畫布:', newNode, '位置:', position)
   
+  // 如果新增的是開始節點，更新全域變數
+  if (nodeData.type === 'start' || newNode.id.includes('start')) {
+    // 延遲一下確保節點數據已經更新
+    setTimeout(() => {
+      updateGlobalVariablesFromStartNode()
+    }, 100)
+  }
+  
   // 自動選中新增的節點
   selectedNode.value = newNode
 }
@@ -968,11 +1159,15 @@ const executeFlow = async () => {
     return
   }
   
+  // 初始化全域變數
+  initializeGlobalVariables()
+  
   isExecuting.value = true
   executionSummary.value = null
   executionStartTime.value = Date.now()
   
   console.log('開始執行流程...')
+  console.log('全域變數:', globalVariables.value)
   
   try {
     const summary = await runFlow(
@@ -1083,6 +1278,11 @@ const deleteSelectedNode = () => {
     // 清空選擇
     selectedNode.value = null
     
+    // 如果刪除的是開始節點，重新更新全域變數
+    if (nodeId.includes('start')) {
+      updateGlobalVariablesFromStartNode()
+    }
+    
     console.log(`節點 ${nodeId} 及相關連線已刪除`)
   }
 }
@@ -1132,14 +1332,15 @@ const clearAll = () => {
     return
   }
   
-  if (confirm(`確定要清空畫布嗎？\n這將刪除所有 ${nodes.value.length} 個節點和 ${edges.value.length} 條連線。`)) {
+  if (confirm(`確定要清空畫布嗎？\n這將刪除所有 ${nodes.value.length} 個節點和 ${edges.value.length} 條連線，並清空全域變數。`)) {
     nodes.value = []
     edges.value = []
     selectedNode.value = null
     selectedEdge.value = null
     executionSummary.value = null
+    globalVariables.value = {} // 清空全域變數
     
-    console.log('畫布已清空')
+    console.log('畫布已清空，全域變數已重置')
   }
 }
 
@@ -1322,6 +1523,11 @@ const saveNodeChanges = () => {
       categories: filteredCategories,
       categoryConditions: filteredConditions,
       notes: editingNode.value.notes
+    }
+    
+    // 如果是開始節點，立即更新全域變數
+    if (editingNode.value.type === 'start' || editingNode.value.id.includes('start')) {
+      updateGlobalVariablesFromStartNode()
     }
     
     console.log('節點配置已更新:', editingNode.value)
@@ -1508,6 +1714,9 @@ const useTemplateFromManager = (template) => {
         }
       }, 100)
       
+      // 載入完成後更新全域變數
+      updateGlobalVariablesFromStartNode()
+      
       showFlowManager.value = false
       alert('模板載入成功！請記得儲存您的流程。')
     })
@@ -1538,6 +1747,9 @@ const importFlowFromManager = (flowData) => {
       }
     }, 100)
     
+    // 導入完成後更新全域變數
+    updateGlobalVariablesFromStartNode()
+    
     showFlowManager.value = false
     alert('流程導入成功！請記得儲存您的流程。')
   } catch (error) {
@@ -1547,6 +1759,14 @@ const importFlowFromManager = (flowData) => {
 
 // 元件掛載時取得節點設定
 updateAvailableNodes()
+
+// 頁面載入時檢查並更新全域變數
+onMounted(() => {
+  // 延遲一點時間確保所有組件都已加載
+  setTimeout(() => {
+    updateGlobalVariablesFromStartNode()
+  }, 500)
+})
 </script>
 
 <style scoped>
@@ -1781,6 +2001,204 @@ updateAvailableNodes()
   background: #e3f2fd;
   border-color: #4285f4;
   color: #4285f4;
+}
+
+/* 全域變數顯示 */
+.global-variables {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #9c27b0;
+}
+
+.global-variables-header h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #9c27b0;
+}
+
+.global-variables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.global-variable-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.variable-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 13px;
+}
+
+.variable-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.variable-type {
+  background: #9c27b0;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.variable-value {
+  font-size: 12px;
+  color: #666;
+  font-family: 'Courier New', monospace;
+  background: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+/* 全域變數選擇器 */
+.global-var-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.global-var-selector-header label {
+  margin: 0;
+  font-weight: 600;
+  color: #9c27b0;
+}
+
+.global-var-hint {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+.global-var-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.global-var-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 3px solid #9c27b0;
+}
+
+.global-var-card:hover {
+  background: #f3e5f5;
+  border-color: #9c27b0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(156, 39, 176, 0.15);
+}
+
+.var-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.var-name {
+  font-weight: 500;
+  font-size: 12px;
+  color: #333;
+  font-family: 'Courier New', monospace;
+}
+
+.var-type-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+  color: white;
+}
+
+.var-type-badge.type-string {
+  background: #4caf50;
+}
+
+.var-type-badge.type-number {
+  background: #ff9800;
+}
+
+.var-type-badge.type-boolean {
+  background: #2196f3;
+}
+
+.var-description {
+  margin-top: 4px;
+}
+
+.var-value {
+  font-size: 10px;
+  color: #666;
+  font-family: 'Courier New', monospace;
+  background: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-global-variables {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+  color: #6c757d;
+}
+
+.no-global-var-icon {
+  font-size: 24px;
+  margin-right: 12px;
+  opacity: 0.6;
+}
+
+.no-global-var-text {
+  flex: 1;
+}
+
+.no-global-var-text strong {
+  color: #495057;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.no-global-var-text p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 /* 流程管理器容器 */
