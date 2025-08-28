@@ -25,8 +25,18 @@
       </VueFlow>
     </div>
     
+    <!-- 側邊欄切換按鈕 -->
+    <button 
+      class="sidebar-toggle" 
+      @click="toggleSidebar"
+      :class="{ 'collapsed': sidebarCollapsed }"
+      title="展開/收起側邊欄"
+    >
+      {{ sidebarCollapsed ? '◀' : '▶' }}
+    </button>
+    
     <!-- 右側節點面板 -->
-    <div class="flow-sidebar">
+    <div class="flow-sidebar" :class="{ 'collapsed': sidebarCollapsed }">
       <!-- 控制面板 -->
       <div class="control-panel">
         <button 
@@ -689,6 +699,9 @@ const nodeCategories = ref([])
 // 分類折疊狀態
 const collapsedCategories = ref({})
 
+// 側邊欄展開/收起狀態
+const sidebarCollapsed = ref(false)
+
 // 計算屬性：根據類型組織節點
 const availableNodes = computed(() => {
   const nodes = []
@@ -701,6 +714,11 @@ const availableNodes = computed(() => {
 // 切換分類折疊狀態
 const toggleCategory = (categoryName) => {
   collapsedCategories.value[categoryName] = !collapsedCategories.value[categoryName]
+}
+
+// 切換側邊欄展開/收起狀態
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
 // 節點點擊事件
@@ -1434,6 +1452,48 @@ updateAvailableNodes()
   border-left: 1px solid #e9ecef;
   overflow-y: auto;
   padding: 20px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.flow-sidebar.collapsed {
+  width: 0;
+  padding: 0;
+  border-left: none;
+  overflow: hidden;
+}
+
+/* 側邊欄切換按鈕 */
+.sidebar-toggle {
+  position: fixed;
+  right: 365px; /* 侧边栏宽度 + 15px */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1000;
+  background: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.sidebar-toggle:hover {
+  background: #3367d6;
+  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.sidebar-toggle.collapsed {
+  right: 15px;
 }
 
 /* 控制面板樣式 */
