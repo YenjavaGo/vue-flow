@@ -78,6 +78,7 @@
 </template>
 
 <script setup>
+// 導入 Vue Flow 的 Handle 和 Position 元件
 import { Handle, Position } from '@vue-flow/core'
 import { computed } from 'vue'
 

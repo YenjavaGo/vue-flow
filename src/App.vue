@@ -91,9 +91,9 @@
             class="save-flow-btn"
             @click="showSaveFlowModal = true"
             :disabled="nodes.length === 0"
-            title="保存當前流程"
+            title="儲存目前流程"
           >
-            💾 保存流程
+            💾 儲存流程
           </button>
           
           <button 
@@ -320,15 +320,77 @@
           </div>
           
           <div class="form-group">
-            <label>輸入參數</label>
-            <textarea 
-              v-model="editingNode.inputParameters" 
-              class="form-textarea input-parameters-textarea"
-              placeholder='定義節點的輸入參數，json格式，例如：{"code":"1","name":"國中"}'
-              rows="4"
-            ></textarea>
+            <div class="parameter-header">
+              <label>輸入參數</label>
+              <button type="button" class="add-param-btn" @click="addParameter" title="新增參數">
+                <span class="plus-icon">+</span>
+              </button>
+            </div>
+            
+            <!-- 動態參數列表 -->
+            <div v-if="editingNode.dynamicParameters.length > 0" class="parameter-list">
+              <div 
+                v-for="(param, index) in editingNode.dynamicParameters" 
+                :key="index"
+                class="parameter-row"
+              >
+                <div class="param-field">
+                  <input 
+                    v-model="param.name" 
+                    type="text" 
+                    class="param-input param-name"
+                    placeholder="變數名稱"
+                  />
+                </div>
+                <div class="param-field">
+                  <select v-model="param.type" class="param-select param-type">
+                    <option value="string">文字</option>
+                    <option value="number">數字</option>
+                    <option value="boolean">布林</option>
+                  </select>
+                </div>
+                <div class="param-field">
+                  <input 
+                    v-if="param.type === 'string'"
+                    v-model="param.value" 
+                    type="text" 
+                    class="param-input param-value"
+                    placeholder="值"
+                  />
+                  <input 
+                    v-else-if="param.type === 'number'"
+                    v-model.number="param.value" 
+                    type="number" 
+                    class="param-input param-value"
+                    placeholder="值"
+                  />
+                  <select 
+                    v-else-if="param.type === 'boolean'"
+                    v-model="param.value" 
+                    class="param-select param-value"
+                  >
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                </div>
+                <button 
+                  type="button" 
+                  class="delete-param-btn" 
+                  @click="removeParameter(index)"
+                  title="刪除參數"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            
+            <!-- 如果沒有參數，顯示提示 -->
+            <div v-else class="no-parameters">
+              <span>尚未新增參數，點擊右上角 + 按鈕新增</span>
+            </div>
+            
             <div class="field-hint">
-              描述此節點需要的輸入參數，包括參數名稱、類型、是否必填等信息
+              定義此節點需要的輸入參數，包括參數名稱、類型和預設值
             </div>
           </div>
           
@@ -415,7 +477,7 @@
             </div>
             <div v-else class="no-categories-hint">
               <div class="hint-icon">ℹ️</div>
-              <div class="hint-text">請先添加分類，條件設置會根據分類數量自動生成</div>
+              <div class="hint-text">請先新增分類，條件設置會根據分類數量自動產生</div>
             </div>
           </div>
           
@@ -563,7 +625,7 @@
             <textarea 
               v-model="editingNode.notes" 
               class="form-textarea"
-              placeholder="添加額外備註或說明"
+              placeholder="新增額外備註或說明"
               rows="2"
             ></textarea>
           </div>
@@ -571,16 +633,16 @@
         
         <div class="modal-footer">
           <button class="cancel-btn" @click="closeEditModal">取消</button>
-          <button class="save-btn" @click="saveNodeChanges">保存變更</button>
+          <button class="save-btn" @click="saveNodeChanges">儲存變更</button>
         </div>
       </div>
     </div>
     
-    <!-- 保存流程模態窗口 -->
+    <!-- 儲存流程模態窗口 -->
     <div v-if="showSaveFlowModal" class="modal-overlay" @click="closeSaveFlowModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>保存流程</h3>
+          <h3>儲存流程</h3>
           <button class="close-btn" @click="closeSaveFlowModal">✕</button>
         </div>
         
@@ -618,7 +680,7 @@
                 <span class="stat-value">{{ edges.length }}</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">創建時間:</span>
+                <span class="stat-label">建立時間:</span>
                 <span class="stat-value">{{ new Date().toLocaleString('zh-TW') }}</span>
               </div>
             </div>
@@ -632,7 +694,7 @@
             @click="saveCurrentFlow"
             :disabled="!saveFlowData.name.trim()"
           >
-            保存流程
+            儲存流程
           </button>
         </div>
       </div>
@@ -642,6 +704,7 @@
 
 <script setup>
 import { ref, computed, markRaw, nextTick } from 'vue'
+// 導入 Vue Flow 核心元件
 import { VueFlow } from '@vue-flow/core'
 import CustomNode from './components/CustomNode.vue'
 import FlowManager from './components/FlowManager.vue'
@@ -649,7 +712,7 @@ import { executeFlow as runFlow, validateFlow } from './utils/flowExecutor.js'
 import { saveFlow, updateFlow } from './utils/flowStorage.js'
 import { recordExecutionHistory } from './utils/executionHistory.js'
 
-// Vue Flow 參考
+// Vue Flow 元件參考
 const vueFlowRef = ref(null)
 
 // 執行狀態
@@ -687,6 +750,7 @@ const editingNode = ref({
   description: '',
   type: '',
   inputParameters: '',
+  dynamicParameters: [], // 新增：動態參數陣列
   config: {},
   categories: [],
   categoryConditions: [],
@@ -721,6 +785,20 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
+// 新增參數
+const addParameter = () => {
+  editingNode.value.dynamicParameters.push({
+    name: '',
+    type: 'string',
+    value: ''
+  })
+}
+
+// 移除參數
+const removeParameter = (index) => {
+  editingNode.value.dynamicParameters.splice(index, 1)
+}
+
 // 節點點擊事件
 const onNodeClick = (event) => {
   selectedNode.value = event.node
@@ -745,9 +823,9 @@ const onEdgeClick = (event) => {
   console.log('邊被點擊:', event.edge)
 }
 
-// 連接事件 - 當用戶拖拽連接兩個節點時觸發
+// 連接事件 - 當使用者拖拽連接兩個節點時觸發
 const onConnect = (connection) => {
-  // 生成唯一的edge ID，包含連接點信息
+  // 產生唯一的edge ID，包含連接點資訊
   const sourceHandle = connection.sourceHandle || 'source'
   const targetHandle = connection.targetHandle || 'target'
   
@@ -784,14 +862,14 @@ const onDrop = async (event) => {
   // 獲取拖拽的資料
   const nodeData = JSON.parse(event.dataTransfer.getData('application/vueflow'))
   
-  // 獲取Vue Flow實例和當前視野信息
+  // 獲取 Vue Flow 實例和當前視野資訊
   const flowInstance = vueFlowRef.value
   if (!flowInstance) {
-    console.error('Vue Flow實例不可用')
+    console.error('Vue Flow 實例不可用')
     return
   }
   
-  // 獲取當前視野信息
+  // 獲取目前視野資訊
   const viewport = flowInstance.getViewport()
   const flowContainer = event.currentTarget
   const rect = flowContainer.getBoundingClientRect()
@@ -800,7 +878,7 @@ const onDrop = async (event) => {
   const clientX = event.clientX - rect.left
   const clientY = event.clientY - rect.top
   
-  // 轉換到流程坐標系（考慮縮放和平移）
+  // 轉換到流程座標系（考慮縮放和平移）
   const x = (clientX - viewport.x) / viewport.zoom
   const y = (clientY - viewport.y) / viewport.zoom
   
@@ -819,7 +897,7 @@ const onDrop = async (event) => {
   
   const position = { x: finalX, y: finalY }
 
-  // 根據節點類型生成默認分類
+  // 根據節點類型產生預設分類
   const getDefaultCategories = (nodeId) => {
     const categoryMap = {
       'auth': [],
@@ -859,9 +937,9 @@ const onDrop = async (event) => {
   
   // 等待下一個tick讓DOM更新
   await nextTick()
-  console.log('新節點已添加到畫布:', newNode, '位置:', position)
+  console.log('新節點已新增到畫布:', newNode, '位置:', position)
   
-  // 自動選中新添加的節點
+  // 自動選中新增的節點
   selectedNode.value = newNode
 }
 
@@ -910,7 +988,7 @@ const executeFlow = async () => {
           ? `流程執行完成！成功: ${summary.successCount}，失敗: ${summary.errorCount}`
           : `流程執行成功！所有 ${summary.successCount} 個節點都已完成`
         
-        // 如果有條件檢查失敗，添加詳細信息
+        // 如果有條件檢查失敗，新增詳細資訊
         const failedResults = summary.results.filter(r => !r.success)
         if (failedResults.length > 0) {
           const errorDetails = failedResults.map(r => 
@@ -1153,12 +1231,33 @@ const openEditModal = (node) => {
     }
   })
   
+  // 處理動態參數的初始化
+  let dynamicParameters = []
+  if (node.data?.dynamicParameters && Array.isArray(node.data.dynamicParameters)) {
+    dynamicParameters = [...node.data.dynamicParameters]
+  } else if (node.data?.inputParameters) {
+    // 如果有舊的inputParameters，嘗試解析為動態參數
+    try {
+      const parsed = JSON.parse(node.data.inputParameters)
+      if (typeof parsed === 'object' && parsed !== null) {
+        dynamicParameters = Object.entries(parsed).map(([name, value]) => ({
+          name,
+          type: typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'boolean' : 'string',
+          value: value
+        }))
+      }
+    } catch (e) {
+      // 解析失敗，保持空陣列
+    }
+  }
+
   editingNode.value = {
     id: node.id,
     label: node.data?.label || '',
     description: node.data?.description || '',
     type: nodeType,
     inputParameters: node.data?.inputParameters || '',
+    dynamicParameters: dynamicParameters,
     config: { ...getDefaultConfig(nodeType), ...(node.data?.config || {}) },
     categories: categories,
     categoryConditions: categoryConditions,
@@ -1177,6 +1276,7 @@ const closeEditModal = () => {
     description: '',
     type: '',
     inputParameters: '',
+    dynamicParameters: [],
     config: {},
     categories: [],
     categoryConditions: [],
@@ -1195,12 +1295,29 @@ const saveNodeChanges = () => {
     // 過濾對應的條件設置，只保留有效分類對應的條件
     const filteredConditions = editingNode.value.categoryConditions.slice(0, filteredCategories.length)
     
+    // 將動態參數轉換為JSON格式的inputParameters
+    const dynamicParamsAsJson = JSON.stringify(
+      editingNode.value.dynamicParameters.reduce((acc, param) => {
+        if (param.name.trim()) {
+          let value = param.value
+          if (param.type === 'number') {
+            value = Number(param.value) || 0
+          } else if (param.type === 'boolean') {
+            value = param.value === 'true' || param.value === true
+          }
+          acc[param.name.trim()] = value
+        }
+        return acc
+      }, {}), null, 2
+    )
+
     // 更新節點數據
     nodes.value[nodeIndex].data = {
       ...nodes.value[nodeIndex].data,
       label: editingNode.value.label,
       description: editingNode.value.description,
-      inputParameters: editingNode.value.inputParameters,
+      inputParameters: dynamicParamsAsJson,
+      dynamicParameters: editingNode.value.dynamicParameters, // 儲存動態參數結構
       config: { ...editingNode.value.config },
       categories: filteredCategories,
       categoryConditions: filteredConditions,
@@ -1215,7 +1332,7 @@ const saveNodeChanges = () => {
 // 新增分類
 const addCategory = () => {
   editingNode.value.categories.push('')
-  // 同時添加對應的條件設置
+  // 同時新增對應的條件設置
   editingNode.value.categoryConditions.push({
     parameter: '',
     value: ''
@@ -1242,7 +1359,7 @@ const getFormattedParameters = (paramStr) => {
     // 如果解析成功，格式化顯示
     const formatted = JSON.stringify(parsed, null, 2)
     
-    // 添加一些額外信息
+    // 新增一些額外資訊
     const paramCount = Object.keys(parsed).length
     const analysis = `// 參數驗證結果：✓ 有效的JSON格式\n// 參數數量：${paramCount} 個\n// 格式化結果：\n\n${formatted}`
     
@@ -1252,7 +1369,7 @@ const getFormattedParameters = (paramStr) => {
     if (paramStr.trim().startsWith('{') || paramStr.trim().startsWith('[')) {
       return `// 參數驗證結果：✗ JSON格式錯誤\n// 錯誤信息：${error.message}\n\n// 原始輸入：\n${paramStr}`
     } else {
-      // 如果不是JSON格式，當作普通文本處理
+      // 如果不是JSON格式，當作普通文字處理
       const lines = paramStr.split('\n')
       const paramCount = lines.filter(line => line.trim() && !line.trim().startsWith('//')).length
       return `// 參數驗證結果：ℹ 非JSON格式（文本格式）\n// 行數：${lines.length}\n// 有效參數行：${paramCount}\n\n// 原始輸入：\n${paramStr}`
@@ -1286,15 +1403,15 @@ const saveCurrentFlow = () => {
       updateFlow(currentFlowId.value, nodes.value, edges.value, saveFlowData.value.description)
       alert('流程更新成功！')
     } else {
-      // 保存新流程
+      // 儲存新流程
       const savedFlow = saveFlow(saveFlowData.value.name, nodes.value, edges.value, saveFlowData.value.description)
       currentFlowId.value = savedFlow.id
-      alert('流程保存成功！')
+      alert('流程儲存成功！')
     }
     
     closeSaveFlowModal()
   } catch (error) {
-    alert('保存失敗：' + error.message)
+    alert('儲存失敗：' + error.message)
   }
 }
 
@@ -1371,7 +1488,7 @@ const useTemplateFromManager = (template) => {
       // 載入調整後的節點和原始連線
       nodes.value = [...adjustedNodes]
       edges.value = [...template.edges]
-      currentFlowId.value = null // 模板使用後需要重新保存
+      currentFlowId.value = null // 模板使用後需要重新儲存
       
       console.log('載入後的節點:', nodes.value)
       console.log('載入後的連線:', edges.value)
@@ -1392,7 +1509,7 @@ const useTemplateFromManager = (template) => {
       }, 100)
       
       showFlowManager.value = false
-      alert('模板載入成功！請記得保存您的流程。')
+      alert('模板載入成功！請記得儲存您的流程。')
     })
   } catch (error) {
     console.error('載入模板失敗:', error)
@@ -1404,7 +1521,7 @@ const importFlowFromManager = (flowData) => {
   try {
     nodes.value = [...flowData.nodes]
     edges.value = [...flowData.edges]
-    currentFlowId.value = null // 導入的流程需要重新保存
+    currentFlowId.value = null // 導入的流程需要重新儲存
     
     // 重置所有節點狀態
     nodes.value.forEach(node => {
@@ -1422,7 +1539,7 @@ const importFlowFromManager = (flowData) => {
     }, 100)
     
     showFlowManager.value = false
-    alert('流程導入成功！請記得保存您的流程。')
+    alert('流程導入成功！請記得儲存您的流程。')
   } catch (error) {
     alert('導入失敗：' + error.message)
   }
@@ -2342,6 +2459,137 @@ updateAvailableNodes()
   color: #666;
   margin-top: 4px;
   line-height: 1.3;
+}
+
+/* 參數輸入相關樣式 */
+.parameter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.add-param-btn {
+  background: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.add-param-btn:hover {
+  background: #3367d6;
+  transform: scale(1.05);
+}
+
+.plus-icon {
+  display: block;
+  line-height: 1;
+}
+
+.parameter-list {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8f9fa;
+}
+
+.parameter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.parameter-row:last-child {
+  margin-bottom: 0;
+}
+
+.param-field {
+  flex: 1;
+}
+
+.param-field:first-child {
+  flex: 1.2; /* 變數名稱欄位稍微寬一些 */
+}
+
+.param-field:nth-child(2) {
+  flex: 0.8; /* 類型欄位稍微窄一些 */
+}
+
+.param-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+}
+
+.param-input:focus {
+  outline: none;
+  border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+.param-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.param-select:focus {
+  outline: none;
+  border-color: #4285f4;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+.delete-param-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.delete-param-btn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.no-parameters {
+  padding: 20px;
+  text-align: center;
+  color: #6c757d;
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+  font-size: 14px;
 }
 
 .modal-footer {

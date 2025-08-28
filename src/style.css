@@ -1,4 +1,4 @@
-/* Vue Flow 樣式 */
+/* Vue Flow 樣式檔案 */
 @import '@vue-flow/core/dist/style.css';
 @import '@vue-flow/core/dist/theme-default.css';
 
@@ -94,7 +94,7 @@ html, body {
   color: #666;
 }
 
-/* Vue Flow 自訂節點樣式 */
+/* Vue Flow 自定義節點樣式 */
 .vue-flow__node {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
